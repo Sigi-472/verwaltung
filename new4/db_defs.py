@@ -6,7 +6,6 @@ from sqlalchemy.orm import declarative_base, relationship, Session, class_mapper
 
 Base = declarative_base()
 
-# Person
 class Person(Base):
     __tablename__ = "person"
     id = Column(Integer, primary_key=True)
