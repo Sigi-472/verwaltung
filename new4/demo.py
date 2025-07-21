@@ -90,10 +90,10 @@ if __name__ == "__main__":
         rows = query.all()
 
         columns = [
-            ("Person", "first_name", "First Name"),
-            ("Person", "last_name", "Last Name"),
-            ("Person", "comment", "Comment"),
-            ("contacts", "email", "Emails", True),   # True = mehrere (Liste)
+            ("Person", "first_name", "First Name", False),
+            ("Person", "last_name", "Last Name", False),
+            ("Person", "comment", "Comment", False),
+            ("contacts", "email", "Emails", True),
             ("contacts", "fax", "Faxes", True),
         ]
 
