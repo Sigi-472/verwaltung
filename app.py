@@ -309,33 +309,6 @@ join_views = {
             {"table": "abteilung", "alias": "a", "type": "LEFT", "on": "inv.abteilung_id = a.id"}
         ]
     },
-
-    "inventory_history": {
-        "base_table": "inventory_history",
-        "base_alias": "invh",
-        "primary_key": "id",
-        "columns": [
-            "invh.id AS id",
-            "invh.inventory_id",
-            "invh.change_date",
-            "invh.change_type",
-            "invh.old_value",
-            "invh.new_value",
-            "invh.comment"
-        ]
-    },
-
-    "vendor": {
-        "base_table": "vendor",
-        "base_alias": "v",
-        "primary_key": "id",
-        "columns": [
-            "v.id AS id",
-            "v.name",
-            "v.address",
-            "v.phone"
-        ]
-    }
 }
 
 app = Flask(__name__)
