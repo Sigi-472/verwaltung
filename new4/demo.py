@@ -57,12 +57,11 @@ if __name__ == "__main__":
     Base.metadata.drop_all(engine)  # Optional: Leert die DB vorher
     Base.metadata.create_all(engine)
 
-    with Session(engine) as session:
-        insert_sample_data(session)
-
     describe_possible_joins("person", Base)
 
     with Session(engine) as session:
+        insert_sample_data(session)
+
         print("\nBeispiel: Alle Personen mit ihren Abteilungen:")
         for entry in session.query(Person).join(PersonToAbteilung).join(Abteilung).all():
             for abt in entry.person_abteilungen:
