@@ -1,16 +1,90 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Datenbank Tabellen</title>
+    <meta charset="UTF-8">
+    <title>Join Views Übersicht</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+            background-color: #f9f9f9;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        ul, table {
+            margin-top: 1em;
+        }
+
+        li {
+            margin-bottom: 0.5em;
+        }
+
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .form-section {
+            margin-top: 2em;
+            padding: 1em;
+            background: #fff;
+            border: 1px solid #ccc;
+            max-width: 400px;
+        }
+
+        .form-section input[type="text"] {
+            width: 100%;
+            padding: 0.4em;
+            margin-bottom: 1em;
+            border: 1px solid #aaa;
+            border-radius: 4px;
+        }
+
+        .form-section button {
+            padding: 0.4em 1em;
+            border: none;
+            background-color: #28a745;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .form-section button:hover {
+            background-color: #218838;
+        }
+
+        .section-title {
+            margin-top: 2em;
+            color: #444;
+        }
+    </style>
 </head>
 <body>
-  <h1>Tabellenübersicht</h1>
-  <ul>
-    {% for table in tables %}
-      <li><a href="{{ url_for('view_table', table=table) }}">{{ table }}</a></li>
-    {% endfor %}
-  </ul>
+
+    <h1>Join Views Übersicht</h1>
+
+    <h2 class="section-title">Vorhandene Views</h2>
+    <ul>
+        {% for view in views %}
+            <li><a href="/view/{{ view }}">{{ view }}</a></li>
+        {% endfor %}
+    </ul>
+
+    <h2 class="section-title">Benutzerdefinierte Links</h2>
+    <ul>
+        {% for link in custom_links %}
+            <li><a href="{{ link.url }}" target="_blank">{{ link.name }}</a></li>
+        {% else %}
+            <li><em>Keine zusätzlichen Links vorhanden.</em></li>
+        {% endfor %}
+    </ul>
 </body>
 </html>
 

@@ -161,69 +161,24 @@ join_views = {
         "primary_key": "object_id"
     }
 }
+        
+custom_links = []
 
 app = Flask(__name__)
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
 def index():
-    tables = ["person", "abteilung"]
-    return render_template("index.html", tables=tables)
+    global custom_links
 
-@app.route("/table/<string:table>")
-def view_table(table: str):
-    if table == "person":
-        conn = verwaltung._get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM person")
-        rows = cursor.fetchall()
-        columns = rows[0].keys() if rows else ["id", "first_name", "last_name", "created_at", "comment"]
-        return render_template("table.html", table=table, columns=columns, rows=rows)
-
-    elif table == "abteilung":
-        conn = verwaltung._get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM abteilung")
-        rows = cursor.fetchall()
-        columns = rows[0].keys() if rows else ["id", "name", "abteilungsleiter_id"]
-        return render_template("table.html", table=table, columns=columns, rows=rows)
-
-    else:
-        return "Tabelle nicht unterstützt", 404
-
-@app.route("/api/data/person", methods=["POST", "PUT", "DELETE"])
-def api_person():
     if request.method == "POST":
-        data = request.json
-        try:
-            person_id = verwaltung.insert_person(
-                first_name=data.get("first_name", ""),
-                last_name=data.get("last_name", ""),
-                comment=data.get("comment")
-            )
-            return jsonify({"status": "inserted", "id": person_id})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        name = request.form.get("name", "").strip()
+        url = request.form.get("url", "").strip()
 
-    elif request.method == "PUT":
-        data = request.json
-        try:
-            verwaltung.update_person(
-                person_id=data["id"],
-                first_name=data.get("first_name"),
-                last_name=data.get("last_name"),
-                comment=data.get("comment")
-            )
-            return jsonify({"status": "updated"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        if name and url:
+            custom_links.append({"name": name, "url": url})
+        return redirect(url_for("index"))
 
-    elif request.method == "DELETE":
-        data = request.json
-        try:
-            verwaltung.delete_person(data["id"])
-            return jsonify({"status": "deleted"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+    return render_template("index.html", views=join_views.keys(), custom_links=custom_links)
 
 @app.route("/api/data/abteilung", methods=["POST", "PUT", "DELETE"])
 def api_abteilung():
@@ -260,7 +215,7 @@ def api_abteilung():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-@app.route("/<view_name>/", methods=["GET"])
+@app.route("/view/<view_name>/", methods=["GET"])
 def generic_join_edit_page(view_name):
     view_def = join_views.get(view_name)
     if not view_def:
