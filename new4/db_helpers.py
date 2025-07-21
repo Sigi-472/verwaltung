@@ -61,9 +61,10 @@ def execute_and_commit(session, stmt):
     session.commit()
 
 def generate_editable_table(rows, columns, id_column='id', allow_add_row=False):
+    from html import escape
     html = ['<form method="post"><table border="1"><thead><tr>']
     for _, _, label, *_ in columns:
-        html.append(f'<th>{label or _ + "." + _}</th>')
+        html.append(f'<th>{label}</th>')
     html.append('</tr></thead><tbody>')
 
     for row in rows:
@@ -73,17 +74,21 @@ def generate_editable_table(rows, columns, id_column='id', allow_add_row=False):
             is_list = rest[0] if rest else False
             if is_list:
                 related_objs = getattr(row, table, [])
-                if related_objs:
-                    vals = [str(getattr(obj, col)) for obj in related_objs]
-                    val = ", ".join(vals)
-                else:
-                    val = ""
+                vals = [str(getattr(obj, col)) for obj in related_objs]
+                val = ", ".join(vals)
             else:
-                val = getattr(row, col, "")
+                # verschachtelt: issuer_id.name
+                if "." in col:
+                    base, sub = col.split(".", 1)
+                    fk_obj = getattr(row, base, None)
+                    val = getattr(fk_obj, sub, "") if fk_obj else ""
+                    readonly = 'readonly'
+                else:
+                    val = getattr(row, col, "")
+                    readonly = ''
                 val = "" if val is None else val
-
             input_name = f"{table}:{col}:{row_id}"
-            html.append(f'<td><input type="text" name="{input_name}" value="{val}"></td>')
+            html.append(f'<td><input type="text" name="{input_name}" value="{escape(str(val))}" {readonly}></td>')
         html.append('</tr>')
 
     if allow_add_row:
@@ -95,3 +100,4 @@ def generate_editable_table(rows, columns, id_column='id', allow_add_row=False):
 
     html.append('</tbody></table><input type="submit" value="Save"></form>')
     return "\n".join(html)
+

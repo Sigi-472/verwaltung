@@ -1,29 +1,18 @@
 from flask import Flask, redirect, render_template_string, request, url_for
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.orm import Session, class_mapper, ColumnProperty, RelationshipProperty
 from db_defs import *  # deine Models
 from db_helpers import generate_editable_table
 
 app = Flask(__name__)
-
-# Engine einmal global erzeugen
 engine = create_engine("sqlite:///mydatabase.db", echo=False)
 
-# Helfer, um alle Models zu bekommen
-def get_models():
-    # Hier holen wir alle Klassen, die Base.metadata enthalten
-    # Base.metadata.tables ist ein dict mit Tabellennamen
-    # Aber wir wollen die Klassen/Models
-    return Base._decl_class_registry.values()
-
-# Wir nehmen nur SQLAlchemy Models (Klassen mit __table__)
 def get_model_classes():
     return [mapper.class_ for mapper in Base.registry.mappers]
 
 @app.route("/")
 def index():
     models = get_model_classes()
-    # Wir bauen eine Liste von (Name der Tabelle, Model-Klasse)
     table_list = [(m.__tablename__, m) for m in models]
 
     html = """
@@ -43,18 +32,16 @@ def show_table(tablename):
         return f"Table {tablename} not found", 404
 
     id_column = 'id'
-    inspector = inspect(model)
 
     with Session(engine) as session:
         if request.method == "POST":
             new_data = {}
-
             for key, val in request.form.items():
                 parts = key.split(":")
                 if len(parts) != 3:
                     continue
                 tname, colname, rowid = parts
-                if tname != tablename:
+                if tname != tablename or "." in colname:
                     continue
                 new_val = val if val != "" else None
 
@@ -86,13 +73,43 @@ def show_table(tablename):
 
         rows = session.query(model).all()
 
-        # Spalten dynamisch inkl. FK erkennen
+        # Dynamische Spaltendefinition
         columns = []
-        for col in model.__table__.columns:
-            if col.name == id_column:
-                continue
-            label = col.name.capitalize()
-            columns.append((tablename, col.name, label, False))
+        fk_relations = {}  # z.B. {"issuer_id": Issuer}
+
+        for prop in class_mapper(model).iterate_properties:
+            if isinstance(prop, ColumnProperty):
+                col = prop.columns[0]
+                if col.primary_key:
+                    continue
+                # Dynamische Spaltendefinition
+                columns = []
+                fk_relations = {}  # z.B. {"issuer_id": Issuer}
+
+                for prop in class_mapper(model).iterate_properties:
+                    if isinstance(prop, ColumnProperty):
+                        col = prop.columns[0]
+                        if col.primary_key:
+                            continue
+                        if col.foreign_keys:
+                            # FK-Spalte → versuche zugehörige Relationship zu finden
+                            for rel in class_mapper(model).iterate_properties:
+                                if isinstance(rel, RelationshipProperty):
+                                    if col in rel.local_columns:
+                                        fk_relations[col.name] = rel.mapper.class_
+                                        break
+                        columns.append((tablename, col.name, col.name.capitalize(), False))
+                columns.append((tablename, col.name, col.name.capitalize(), False))
+
+        # Jetzt alle lesbaren Felder aus den FK-Modellen hinzufügen
+        for fk_col, fk_model in fk_relations.items():
+            for prop in class_mapper(fk_model).iterate_properties:
+                if isinstance(prop, ColumnProperty):
+                    col = prop.columns[0]
+                    if col.primary_key or col.foreign_keys:
+                        continue
+                    label = f"{fk_col}.{col.name}"
+                    columns.append((tablename, f"{fk_col}.{col.name}", label, False))
 
         html_table = generate_editable_table(rows, columns, id_column=id_column, allow_add_row=True)
 
@@ -104,6 +121,5 @@ def show_table(tablename):
     return render_template_string(html_tpl, tablename=tablename, html_table=html_table)
 
 if __name__ == "__main__":
-    # DB Tabellen erzeugen
     Base.metadata.create_all(engine)
     app.run(debug=True)
