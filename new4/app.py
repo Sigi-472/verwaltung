@@ -51,35 +51,43 @@ def show_table(tablename):
 
     with Session(engine) as session:
         if request.method == "POST":
-            # Formular-Daten bearbeiten
-            # Erwartet Eingaben mit Name = tablename:column:rowid
+            new_data = {}
 
             for key, val in request.form.items():
-                # key = "tablename:column:rowid"
                 parts = key.split(":")
                 if len(parts) != 3:
-                    continue  # unerwartetes Format ignorieren
+                    continue
                 tname, colname, rowid = parts
                 if tname != tablename:
-                    continue  # andere Tabelle ignorieren
-
-                # Datensatz holen
-                obj = session.get(model, rowid)
-                if not obj:
-                    continue  # ungültige ID ignorieren
-
-                # Leere Strings zu None konvertieren
+                    continue
                 new_val = val if val != "" else None
 
-                # Spalte darf nicht Primärschlüssel sein, nicht updaten
+                if rowid == "new":
+                    new_data[colname] = new_val
+                    continue
+
                 if colname == id_column:
                     continue
 
-                # Attribut aktualisieren
+                obj = session.get(model, rowid)
+                if not obj:
+                    continue
                 setattr(obj, colname, new_val)
 
-            session.commit()
-            return redirect(request.url)  # Nach Post-Redirect-Get
+            if any(v is not None for v in new_data.values()):
+                new_obj = model()
+                for k, v in new_data.items():
+                    if k == id_column:
+                        continue
+                    setattr(new_obj, k, v)
+                session.add(new_obj)
+                session.commit()  # Commit hier, damit ID gesetzt wird
+                session.refresh(new_obj)  # optional, um sicherzugehen
+
+            else:
+                session.commit()
+
+            return redirect(request.url)
 
         # GET: Daten abfragen und Tabelle anzeigen
         rows = session.query(model).all()
@@ -91,7 +99,7 @@ def show_table(tablename):
                 continue
             columns.append((tablename, col.name, col.name.capitalize(), False))
 
-        html_table = generate_editable_table(rows, columns, id_column=id_column)
+        html_table = generate_editable_table(rows, columns, id_column=id_column, allow_add_row=True)
 
     html = """
     <a href="{{ url_for('index') }}">&lt;&lt; Back to tables</a>
