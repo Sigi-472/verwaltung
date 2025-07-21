@@ -351,22 +351,24 @@ if __name__ == "__main__":
     describe_joins("person", Base)
 
     with Session(engine) as session:
-        query = build_deep_query(
-            session,
-            ["person", "person_to_abteilung", "abteilung", "person_contact"],
-            Base,
+        query = (
+            session.query(Person)
+            .options(
+                joinedload(Person.person_abteilungen)
+                .joinedload(PersonToAbteilung.abteilung)
+                .joinedload(Abteilung.leiter)
+                .joinedload(Person.contacts)
+            )
+            .filter(Person.first_name == "Anna")
         )
-        results = query.filter(Person.first_name == "Anna").all()
 
+        results = query.filter(Person.first_name == "Anna").all()
         for p in results:
-            print(p.first_name, p.last_name)
-            for c in p.contacts:
-                print("  📧", c.email)
-            for pa in p.person_abteilungen:
-                abt = pa.abteilung
-                if abt and abt.leiter:
-                    print("  🏢 Abteilung:", abt.name)
-                    print("    👨‍🏫 Leiter:", abt.leiter.first_name, abt.leiter.last_name)
-                    for contact in abt.leiter.contacts:
-                        print("      📧", contact.email)
+            for p in results:
+                for pa in p.person_abteilungen:
+                    abteilung = pa.abteilung
+                    leiter = abteilung.leiter
+                    if leiter:
+                        emails = [c.email for c in leiter.contacts if c.email]
+                        print(p.first_name, "-> Abt:", abteilung.name, "Leiter:", leiter.first_name, leiter.last_name, "Emails:", emails)
 
