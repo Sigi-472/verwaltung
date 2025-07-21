@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime, date
 from typing import List, Dict, Optional, Tuple, Any, Union
 from beartype import beartype
+from flask import jsonify
 import re
 
 DB_CONN: Optional[sqlite3.Connection] = None
@@ -57,104 +58,116 @@ def group_updates_by_table(update_fields, data, col_field_map, alias_to_table):
         updates_by_table.setdefault(table, {})[real_field] = data[field]
     return updates_by_table
 
+def app_update_table(cursor, table, fields_values, pk_field, pk_value):
+    try:
+        set_clauses = []
+        params = []
+        for k, v in fields_values.items():
+            set_clauses.append(f"{k} = ?")
+            params.append(v)
+        params.append(pk_value)
+        sql_update = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE {pk_field} = ?"
+        cursor.execute(sql_update, params)
+        if cursor.rowcount == 0:
+            # Kein Datensatz zum Updaten - INSERT machen
+            all_fields = list(fields_values.keys()) + [pk_field]
+            all_values = list(fields_values.values()) + [pk_value]
+            placeholders = ", ".join(["?"] * len(all_fields))
+            sql_insert = f"INSERT INTO {table} ({', '.join(all_fields)}) VALUES ({placeholders})"
+            cursor.execute(sql_insert, all_values)
+    except Exception as e:
+        raise RuntimeError(f"Fehler in app_update_table_or_insert: {str(e)}")
 
-def app_update_table(cursor, table, fields_values, pk_value):
-    set_clauses = []
-    params = []
-    for k, v in fields_values.items():
-        set_clauses.append(f"{k} = ?")
-        params.append(v)
-    params.append(pk_value)
-    sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE id = ?"
-    cursor.execute(sql, params)
 
-
-def parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value):
+def parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value, alias_to_table):
     try:
         left, right = join_on.split("=")
         left = left.strip()
         right = right.strip()
 
         if left.startswith(join_alias + "."):
-            filter_col = left.split(".")[1]
-            cursor.execute(f"SELECT {right.split('.')[1]} FROM {base_table} WHERE id = ?", (pk_value,))
-            row = cursor.fetchone()
-            if not row:
-                return None, None, jsonify({"error": f"Basis-Datensatz in {base_table} nicht gefunden"}), 404
-            filter_val = row[0]
+            join_side = left
+            other_side = right
         elif right.startswith(join_alias + "."):
-            filter_col = right.split(".")[1]
-            cursor.execute(f"SELECT {left.split('.')[1]} FROM {base_table} WHERE id = ?", (pk_value,))
-            row = cursor.fetchone()
-            if not row:
-                return None, None, jsonify({"error": f"Basis-Datensatz in {base_table} nicht gefunden"}), 404
-            filter_val = row[0]
+            join_side = right
+            other_side = left
         else:
-            return None, None, jsonify({"error": "Unbekannte Join-Bedingung"}), 400
+            return None, None, "Unbekannte Join-Bedingung (kein Alias passt)", 400
 
-        return filter_col, filter_val, None, None
+        join_col = join_side.split(".")[1]
+        other_alias, other_col = other_side.split(".")
+        other_table = alias_to_table.get(other_alias)
+
+        if not other_table:
+            return None, None, f"Alias '{other_alias}' ist keiner Tabelle zugeordnet", 400
+
+        # Sonderfall: Zugriff auf base_table mit id
+        if other_alias == alias_to_table.get("base_alias", ""):
+            cursor.execute(f"SELECT {other_col} FROM {other_table} WHERE id = ?", (pk_value,))
+        else:
+            # Versuch, Fremd-ID aus Join-Tabelle zu lesen
+            # Annahme: Join-Tabelle hat 1:n-Beziehung mit base_table → wir lesen mit base_id
+            base_id_col = f"{base_table}_id"
+            cursor.execute(f"SELECT {other_col} FROM {other_table} WHERE {base_id_col} = ?", (pk_value,))
+
+        row = cursor.fetchone()
+        if not row:
+            return None, None, f"Kein Wert in {other_table} für {other_col} gefunden", 404
+
+        return join_col, row[0], None, None
+
     except Exception as e:
-        return None, None, jsonify({"error": f"Fehler bei Join-Bedingung: {str(e)}"}), 500
+        return None, None, f"Fehler bei Join-Bedingung: {str(e)}", 500
 
 
-def update_join_tables(cursor, view_def, updates_by_table, base_table, pk_value):
-    print("DEBUG: update_join_tables gestartet")
-    print(f"DEBUG: view_def joins: {view_def.get('joins', [])}")
-    print(f"DEBUG: updates_by_table keys: {list(updates_by_table.keys())}")
-    print(f"DEBUG: base_table: {base_table}, pk_value: {pk_value}")
 
+def update_join_tables(cursor, view_def, updates_by_table, base_table, pk_value, alias_to_table):
     for join in view_def.get("joins", []):
         join_table = join["table"]
         join_alias = join.get("alias")
         join_on = join.get("on")
 
-        print(f"DEBUG: Verarbeite Join-Tabelle: {join_table}, Alias: {join_alias}, ON: {join_on}")
-
         if join_table not in updates_by_table:
-            print(f"DEBUG: {join_table} nicht in updates_by_table, überspringe")
             continue
 
         if not join_on:
-            print("DEBUG: Join-Bedingung fehlt")
-            return jsonify({"error": "Join-Bedingung fehlt"}), 500
+            raise RuntimeError("Join-Bedingung fehlt")
 
-        filter_col, filter_val, error_response, status_code = parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value)
+        filter_col, filter_val, error_response, status_code = parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value, alias_to_table)
         if error_response:
-            print(f"DEBUG: Fehler bei parse_join_on_condition: {error_response}")
-            return error_response, status_code
-
-        print(f"DEBUG: filter_col={filter_col}, filter_val={filter_val}")
+            raise RuntimeError(f"Fehler bei parse_join_on_condition: {error_response}")
 
         cursor.execute(f"SELECT id FROM {join_table} WHERE {filter_col} = ?", (filter_val,))
         join_rows = cursor.fetchall()
-        print(f"DEBUG: Gefundene Join-Rows in {join_table}: {join_rows}")
 
         if not join_rows:
-            print(f"DEBUG: Kein Eintrag in {join_table} mit {filter_col}={filter_val} gefunden")
-            return jsonify({"error": f"Kein Eintrag in {join_table} mit {filter_col}={filter_val} gefunden"}), 404
+            # Kein Datensatz vorhanden -> INSERT machen mit filter_col=filter_val plus update fields
+            fields = updates_by_table[join_table].copy()
+            # filter_col ist das Join-Kriterium, muss mit rein
+            fields[filter_col] = filter_val
+            all_fields = list(fields.keys())
+            all_values = list(fields.values())
+            placeholders = ", ".join(["?"] * len(all_fields))
+            sql_insert = f"INSERT INTO {join_table} ({', '.join(all_fields)}) VALUES ({placeholders})"
+            cursor.execute(sql_insert, all_values)
+            continue
 
         for join_row in join_rows:
             join_id = join_row["id"]
-            print(f"DEBUG: Aktualisiere Join-Tabelle {join_table} mit id={join_id}")
             set_clauses = []
             params = []
             for k, v in updates_by_table[join_table].items():
                 set_clauses.append(f"{k} = ?")
                 params.append(v)
-
             params.append(join_id)
-            sql = f"UPDATE {join_table} SET {', '.join(set_clauses)} WHERE id = ?"
-            print(f"DEBUG: SQL: {sql}")
-            print(f"DEBUG: Params: {params}")
-
-            cursor.execute(sql, params)
-            print(f"DEBUG: rowcount nach Update: {cursor.rowcount}")
+            sql_update = f"UPDATE {join_table} SET {', '.join(set_clauses)} WHERE id = ?"
+            cursor.execute(sql_update, params)
             if cursor.rowcount == 0:
-                print(f"DEBUG: Update in {join_table} mit id={join_id} fehlgeschlagen")
-                return jsonify({"error": f"Update in {join_table} mit id={join_id} fehlgeschlagen"}), 500
-
-    print("DEBUG: update_join_tables erfolgreich abgeschlossen")
-    return None, None
+                # Update fehlgeschlagen, mach stattdessen Insert
+                fields = updates_by_table[join_table].copy()
+                # Wenn id existiert, besser nicht neu einfügen, sondern Fehler werfen oder anders handeln
+                # Hier überspringen wir Insert, da id schon existiert
+                raise RuntimeError(f"Update in {join_table} mit id={join_id} fehlgeschlagen und Insert abgebrochen")
 
 def extract_alias_table_mapping(view_def):
     mapping = {view_def["base_alias"]: view_def["base_table"]}
