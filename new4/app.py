@@ -38,16 +38,12 @@ def index():
 
 @app.route("/table/<tablename>", methods=["GET", "POST"])
 def show_table(tablename):
-    # Model anhand Tabellennamen finden
-    model = None
-    for m in get_model_classes():
-        if m.__tablename__ == tablename:
-            model = m
-            break
+    model = next((m for m in get_model_classes() if m.__tablename__ == tablename), None)
     if not model:
         return f"Table {tablename} not found", 404
 
-    id_column = 'id'  # falls bei dir ein anderer Name, anpassen!
+    id_column = 'id'
+    inspector = inspect(model)
 
     with Session(engine) as session:
         if request.method == "POST":
@@ -81,33 +77,31 @@ def show_table(tablename):
                         continue
                     setattr(new_obj, k, v)
                 session.add(new_obj)
-                session.commit()  # Commit hier, damit ID gesetzt wird
-                session.refresh(new_obj)  # optional, um sicherzugehen
-
+                session.commit()
+                session.refresh(new_obj)
             else:
                 session.commit()
 
             return redirect(request.url)
 
-        # GET: Daten abfragen und Tabelle anzeigen
         rows = session.query(model).all()
 
-        # Spalten definieren, ohne Primary Key
+        # Spalten dynamisch inkl. FK erkennen
         columns = []
         for col in model.__table__.columns:
             if col.name == id_column:
                 continue
-            columns.append((tablename, col.name, col.name.capitalize(), False))
+            label = col.name.capitalize()
+            columns.append((tablename, col.name, label, False))
 
         html_table = generate_editable_table(rows, columns, id_column=id_column, allow_add_row=True)
 
-    html = """
+    html_tpl = """
     <a href="{{ url_for('index') }}">&lt;&lt; Back to tables</a>
     <h1>Table: {{ tablename }}</h1>
     {{ html_table|safe }}
     """
-
-    return render_template_string(html, tablename=tablename, html_table=html_table)
+    return render_template_string(html_tpl, tablename=tablename, html_table=html_table)
 
 if __name__ == "__main__":
     # DB Tabellen erzeugen
