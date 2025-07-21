@@ -1,7 +1,7 @@
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, ForeignKey, Date, Float, TIMESTAMP
 )
-from sqlalchemy.orm import declarative_base, relationship, Session
+from sqlalchemy.orm import declarative_base, relationship, Session, class_mapper, RelationshipProperty
 
 Base = declarative_base()
 
@@ -162,6 +162,27 @@ class Inventory(Base):
 
 # ========== DEMO + JOIN-BEISPIELE ==========
 
+def describe_joins(table_name: str, base_class):
+    # Mapping aller ORM-Klassen aus der Base
+    models = {cls.__tablename__: cls for cls in base_class.__subclasses__()}
+
+    if table_name not in models:
+        print(f"Tabelle '{table_name}' existiert nicht.")
+        return
+
+    cls = models[table_name]
+    print(f"Joins für Tabelle '{table_name}':\n")
+
+    mapper = class_mapper(cls)
+    found = False
+    for rel in mapper.relationships:
+        target = rel.mapper.class_.__name__
+        print(f"  {rel.key} → {target} ({'ManyToOne' if rel.direction.name == 'MANYTOONE' else rel.direction.name})")
+        found = True
+
+    if not found:
+        print("  Keine Joins vorhanden.")
+
 def insert_sample_data(session):
     # Personen
     anna = Person(first_name="Anna", last_name="Müller")
@@ -236,3 +257,5 @@ if __name__ == "__main__":
         insert_sample_data(session)
 
     demo_queries(engine)
+
+    describe_joins("person", Base)
