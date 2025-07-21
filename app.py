@@ -3,6 +3,25 @@ from flask import Flask, render_template, render_template_string, request, jsoni
 import verwaltung
 import os
 
+join_view_person_abteilung = {
+    "base_table": "person",
+    "base_alias": "p",
+    "joins": [
+        {"table": "person_to_abteilung", "alias": "pta", "type": "LEFT", "on": "p.id = pta.person_id"},
+        {"table": "abteilung", "alias": "a", "type": "LEFT", "on": "pta.abteilung_id = a.id"}
+    ],
+    "columns": [
+        "p.id AS id",
+        "p.first_names",
+        "p.last_name",
+        "p.created_at",
+        "p.comment",
+        "a.id AS abteilung_id",
+        "a.name AS abteilungsname"
+    ],
+    "primary_key": "id"
+}
+
 from typing import Any
 
 app = Flask(__name__)
@@ -106,24 +125,6 @@ def api_abteilung():
 @app.route("/api/join/person_abteilung", methods=["PUT"])
 def api_update_person_abteilung():
     # Definition der Join-View (kann man auch auslagern)
-    join_view_person_abteilung = {
-        "base_table": "person",
-        "base_alias": "p",
-        "joins": [
-            {"table": "person_to_abteilung", "alias": "pta", "type": "LEFT", "on": "p.id = pta.person_id"},
-            {"table": "abteilung", "alias": "a", "type": "LEFT", "on": "pta.abteilung_id = a.id"}
-        ],
-        "columns": [
-            "p.id AS id",
-            "p.first_names",
-            "p.last_name",
-            "p.created_at",
-            "p.comment",
-            "a.id AS abteilung_id",
-            "a.name AS abteilungsname"
-        ],
-        "primary_key": "id"
-    }
 
     data = request.get_json()
     if not data:
@@ -246,25 +247,6 @@ def api_update_person_abteilung():
 
 @app.route("/person_abteilung/", methods=["GET"])
 def person_abteilung_edit_page():
-    join_view_person_abteilung = {
-        "base_table": "person",
-        "base_alias": "p",
-        "joins": [
-            {"table": "person_to_abteilung", "alias": "pta", "type": "LEFT", "on": "p.id = pta.person_id"},
-            {"table": "abteilung", "alias": "a", "type": "LEFT", "on": "pta.abteilung_id = a.id"}
-        ],
-        "columns": [
-            "p.id AS id",
-            "p.first_names",
-            "p.last_name",
-            "p.created_at",
-            "p.comment",
-            "a.id AS abteilung_id",
-            "a.name AS abteilungsname"
-        ],
-        "primary_key": "id"
-    }
-
     conn = verwaltung._get_connection()
     try:
         rows = verwaltung.fetch_join_view(conn, join_view_person_abteilung)
