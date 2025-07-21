@@ -1,27 +1,7 @@
 from db_defs import *
+from db_helpers import describe_possible_joins
 
 # ========== DEMO + JOIN-BEISPIELE ==========
-
-def describe_joins(table_name: str, base_class):
-    # Mapping aller ORM-Klassen aus der Base
-    models = {cls.__tablename__: cls for cls in base_class.__subclasses__()}
-
-    if table_name not in models:
-        print(f"Tabelle '{table_name}' existiert nicht.")
-        return
-
-    cls = models[table_name]
-    print(f"Joins für Tabelle '{table_name}':\n")
-
-    mapper = class_mapper(cls)
-    found = False
-    for rel in mapper.relationships:
-        target = rel.mapper.class_.__name__
-        print(f"  {rel.key} → {target} ({'ManyToOne' if rel.direction.name == 'MANYTOONE' else rel.direction.name})")
-        found = True
-
-    if not found:
-        print("  Keine Joins vorhanden.")
 
 def insert_sample_data(session):
     # Personen
@@ -80,7 +60,7 @@ if __name__ == "__main__":
     with Session(engine) as session:
         insert_sample_data(session)
 
-    describe_joins("person", Base)
+    describe_possible_joins("person", Base)
 
     with Session(engine) as session:
         print("\nBeispiel: Alle Personen mit ihren Abteilungen:")
