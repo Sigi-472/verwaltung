@@ -17,22 +17,47 @@ def get_joined_data(conn, view_config):
     return rows
 
 def update_row(conn, view_config, data):
-    tables = view_config.get('writable_tables')
-    if not tables:
-        raise ValueError("No writable_tables defined")
-    
-    pk = view_config['primary_key']
-    pk_val = data[pk]
-    
-    for table, alias in tables.items():
-        update_fields = {k: v for k, v in data.items() if k.startswith(alias + ".") or k in [f"{alias}.{c.split(' AS ')[-1]}" for c in view_config["columns"]]}
-        update_fields_clean = {k.split('.')[-1]: v for k, v in update_fields.items()}
-        if not update_fields_clean:
+    if "writable_tables" not in view_config:
+        raise ValueError("Missing 'writable_tables' in view_config")
+
+    pk = view_config["primary_key"]
+    pk_val = data.get(pk)
+    if pk_val is None:
+        raise ValueError("Primary key value missing in update data")
+
+    # Mappe AS-Namen zu Tabellenaliasen
+    alias_to_table = {alias: table for table, alias in view_config["writable_tables"].items()}
+    table_columns = {alias: [] for alias in alias_to_table}
+
+    for col in view_config["columns"]:
+        # Bestimme die Spalte, z.B. "p.first_name AS vorname"
+        if ' AS ' in col:
+            real, alias = col.split(" AS ")
+        else:
+            real = col
+            alias = col.split(".")[-1]
+
+        parts = real.strip().split(".")
+        if len(parts) == 2:
+            alias_prefix, col_name = parts
+            if alias_prefix in alias_to_table:
+                table_columns[alias_prefix].append((alias, col_name))  # (form_name, db_column)
+
+    # UPDATE für jede Tabelle
+    for alias_prefix, col_mappings in table_columns.items():
+        update_data = {}
+        for form_name, db_column in col_mappings:
+            if form_name in data:
+                update_data[db_column] = data[form_name]
+
+        if not update_data:
             continue
-        
-        sets = ", ".join(f"{k} = ?" for k in update_fields_clean)
-        values = list(update_fields_clean.values())
-        conn.execute(f"UPDATE {table} SET {sets} WHERE id = ?", values + [pk_val])
+
+        table = alias_to_table[alias_prefix]
+        set_clause = ", ".join(f"{col} = ?" for col in update_data)
+        values = list(update_data.values())
+        conn.execute(f"UPDATE {table} SET {set_clause} WHERE id = ?", values + [pk_val])
+
     conn.commit()
 
 def delete_row(conn, view_config, pk_val):
@@ -43,7 +68,17 @@ def delete_row(conn, view_config, pk_val):
 
 def insert_row(conn, view_config, data):
     table = view_config['base_table']
-    columns = [col.split(' AS ')[-1] for col in view_config['columns'] if not col.endswith(' AS id')]
+
+    # Extrahiere die Spaltennamen korrekt
+    columns = []
+    for col in view_config['columns']:
+        if ' AS ' in col:
+            name = col.split(' AS ')[-1]
+        else:
+            name = col.split('.')[-1]
+        if name != 'id':  # Kein autoincrement-Feld
+            columns.append(name)
+
     insert_data = {k: data.get(k, None) for k in columns}
     keys = ", ".join(insert_data.keys())
     placeholders = ", ".join("?" for _ in insert_data)
