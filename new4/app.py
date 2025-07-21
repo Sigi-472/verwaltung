@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, url_for
+from flask import Flask, redirect, render_template_string, request, url_for
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from db_defs import *  # deine Models
@@ -36,7 +36,7 @@ def index():
     """
     return render_template_string(html, tables=table_list)
 
-@app.route("/table/<tablename>")
+@app.route("/table/<tablename>", methods=["GET", "POST"])
 def show_table(tablename):
     # Model anhand Tabellennamen finden
     model = None
@@ -47,20 +47,52 @@ def show_table(tablename):
     if not model:
         return f"Table {tablename} not found", 404
 
-    # Session öffnen und alle Zeilen abfragen
+    id_column = 'id'  # falls bei dir ein anderer Name, anpassen!
+
     with Session(engine) as session:
+        if request.method == "POST":
+            # Formular-Daten bearbeiten
+            # Erwartet Eingaben mit Name = tablename:column:rowid
+
+            for key, val in request.form.items():
+                # key = "tablename:column:rowid"
+                parts = key.split(":")
+                if len(parts) != 3:
+                    continue  # unerwartetes Format ignorieren
+                tname, colname, rowid = parts
+                if tname != tablename:
+                    continue  # andere Tabelle ignorieren
+
+                # Datensatz holen
+                obj = session.get(model, rowid)
+                if not obj:
+                    continue  # ungültige ID ignorieren
+
+                # Leere Strings zu None konvertieren
+                new_val = val if val != "" else None
+
+                # Spalte darf nicht Primärschlüssel sein, nicht updaten
+                if colname == id_column:
+                    continue
+
+                # Attribut aktualisieren
+                setattr(obj, colname, new_val)
+
+            session.commit()
+            return redirect(request.url)  # Nach Post-Redirect-Get
+
+        # GET: Daten abfragen und Tabelle anzeigen
         rows = session.query(model).all()
 
-    # Spalten definieren — hier müsste man das anpassen, evtl. dynamisch oder hardcoded
-    # Beispiel: alle Spalten des Models (außer Beziehungsspalten) anzeigen
-    columns = []
-    for col in model.__table__.columns:
-        columns.append((tablename, col.name, col.name.capitalize(), False))
+        # Spalten definieren, ohne Primary Key
+        columns = []
+        for col in model.__table__.columns:
+            if col.name == id_column:
+                continue
+            columns.append((tablename, col.name, col.name.capitalize(), False))
 
-    # HTML-Table generieren
-    html_table = generate_editable_table(rows, columns, id_column='id')
+        html_table = generate_editable_table(rows, columns, id_column=id_column)
 
-    # Seite rendern mit Link zurück und der Tabelle
     html = """
     <a href="{{ url_for('index') }}">&lt;&lt; Back to tables</a>
     <h1>Table: {{ tablename }}</h1>
