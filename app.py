@@ -13,10 +13,7 @@ join_views = {
     "person_abteilung": {
         "base_table": "person",
         "base_alias": "p",
-        "joins": [
-            {"table": "person_to_abteilung", "alias": "pta", "type": "LEFT", "on": "p.id = pta.person_id"},
-            {"table": "abteilung", "alias": "a", "type": "LEFT", "on": "pta.abteilung_id = a.id"}
-        ],
+        "primary_key": "id",
         "columns": [
             "p.id AS id",
             "p.first_name",
@@ -26,7 +23,25 @@ join_views = {
             "a.id AS abteilung_id",
             "a.name AS abteilungsname"
         ],
-        "primary_key": "id"
+        "joins": [
+            {
+                "table": "person_to_abteilung",
+                "alias": "pta",
+                "type": "LEFT",
+                "on": "p.id = pta.person_id"
+            },
+            {
+                "table": "abteilung",
+                "alias": "a",
+                "type": "LEFT",
+                "on": "pta.abteilung_id = a.id"
+            }
+        ],
+        "writable_tables": {
+            "person": "p",
+            "person_to_abteilung": "pta",
+            "abteilung": "a"
+        }
     },
     "person_contact": {
         "base_table": "person",
@@ -207,6 +222,8 @@ def api_abteilung():
             return jsonify({"status": "deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+from flask import Flask, request, jsonify, render_template
+import sqlite3  # oder dein DB-Adapter
 
 @app.route("/view/<view_name>/", methods=["GET"])
 def generic_join_edit_page(view_name):
@@ -216,6 +233,11 @@ def generic_join_edit_page(view_name):
 
     conn = verwaltung._get_connection()
     try:
+        sort_by = request.args.get("sort_by")
+        order = request.args.get("order", "asc").lower()
+        if order not in ("asc", "desc"):
+            order = "asc"
+
         rows = verwaltung.fetch_join_view(conn, view_def)
         records = [dict(row) for row in rows]
 
@@ -224,7 +246,11 @@ def generic_join_edit_page(view_name):
 
         fields = list(records[0].keys())
 
-        # Beispiel: Automatische Dropdowns für *_id-Felder
+        # Sortieren
+        if sort_by in fields:
+            records.sort(key=lambda x: x.get(sort_by), reverse=(order == "desc"))
+
+        # Automatische Dropdowns für *_id Felder
         select_options = {}
         cursor = conn.cursor()
         for field in fields:
@@ -237,19 +263,22 @@ def generic_join_edit_page(view_name):
                         rows = cursor.fetchall()
                         select_options[field] = [{"id": r["id"], "name": r["name"]} for r in rows]
                     except Exception:
-                        continue  # z.B. wenn "name" nicht existiert
+                        continue
 
         return render_template(
             "edit_table.html",
             records=records,
             fields=fields,
             primary_key=view_def["primary_key"],
-            select_options=select_options
+            select_options=select_options,
+            sort_by=sort_by,
+            order=order
         )
     except Exception as e:
         return f"<h1>Fehler: {str(e)}</h1>", 500
     finally:
         conn.close()
+
 
 @app.route("/api/join/<view_name>", methods=["PUT"])
 def api_update_generic_view(view_name):
@@ -261,35 +290,59 @@ def api_update_generic_view(view_name):
     if not data:
         return jsonify({"error": "Keine JSON-Daten empfangen"}), 400
 
-    pk_field = view_def["primary_key"]
-    if pk_field not in data:
-        return jsonify({"error": f"Primärschlüssel '{pk_field}' fehlt"}), 400
-
-    pk_value = data[pk_field]
-    alias_to_table = verwaltung.extract_alias_table_mapping(view_def)
-    col_field_map = verwaltung.extract_column_field_mapping(view_def)
-
-    update_fields = [
-        k for k in data if k != pk_field and k in col_field_map
-    ]
-
-    if not update_fields:
-        return jsonify({"error": "Keine gültigen Felder zum Aktualisieren"}), 400
-
-    updates_by_table = {}
-    for field in update_fields:
-        alias, real_field = col_field_map[field]
-        table = alias_to_table.get(alias)
-        if not table:
-            continue
-        updates_by_table.setdefault(table, {})[real_field] = data[field]
-
     conn = verwaltung._get_connection()
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
+        base_table = view_def["base_table"]
+
+        # Spalte hinzufügen
+        if "__add_column__" in data:
+            new_col = data["__add_column__"]
+            col_name = new_col.get("name")
+            col_type = new_col.get("type", "TEXT")
+            if not col_name:
+                return jsonify({"error": "Spaltenname fehlt"}), 400
+            cursor.execute(f"ALTER TABLE {base_table} ADD COLUMN {col_name} {col_type}")
+            conn.commit()
+            return jsonify({"success": True, "message": f"Spalte '{col_name}' hinzugefügt"})
+
+        # Spalte löschen
+        if "__drop_column__" in data:
+            drop_col = data["__drop_column__"]
+            if not drop_col:
+                return jsonify({"error": "Keine Spalte zum Löschen angegeben"}), 400
+            # ACHTUNG: SQLite unterstützt `DROP COLUMN` erst ab Version 3.35
+            try:
+                cursor.execute(f"ALTER TABLE {base_table} DROP COLUMN {drop_col}")
+            except Exception as e:
+                return jsonify({"error": f"Konnte Spalte nicht löschen: {str(e)}"}), 500
+            conn.commit()
+            return jsonify({"success": True, "message": f"Spalte '{drop_col}' gelöscht"})
+
+        pk_field = view_def["primary_key"]
+        if pk_field not in data:
+            return jsonify({"error": f"Primärschlüssel '{pk_field}' fehlt"}), 400
+
+        pk_value = data[pk_field]
+        alias_to_table = verwaltung.extract_alias_table_mapping(view_def)
+        col_field_map = verwaltung.extract_column_field_mapping(view_def)
+
+        update_fields = [
+            k for k in data if k != pk_field and k in col_field_map
+        ]
+
+        if not update_fields:
+            return jsonify({"error": "Keine gültigen Felder zum Aktualisieren"}), 400
+
+        updates_by_table = {}
+        for field in update_fields:
+            alias, real_field = col_field_map[field]
+            table = alias_to_table.get(alias)
+            if not table:
+                continue
+            updates_by_table.setdefault(table, {})[real_field] = data[field]
 
         # Update der Base-Tabelle
-        base_table = view_def["base_table"]
         if base_table in updates_by_table:
             set_clauses = []
             params = []
@@ -305,7 +358,6 @@ def api_update_generic_view(view_name):
             join_table = join["table"]
             if join_table not in updates_by_table:
                 continue
-            # Sonderfall: Fremdschlüssel über person_id
             cursor.execute(f"SELECT id FROM {join_table} WHERE person_id = ?", (pk_value,))
             row = cursor.fetchone()
             if not row:
