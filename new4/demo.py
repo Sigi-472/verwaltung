@@ -288,6 +288,55 @@ def demo_queries(engine):
         for prof in session.query(Professorship).join(ProfessorshipToPerson).join(Person).all():
             print(f"{prof.name} → {[p.person.first_name + ' ' + p.person.last_name for p in prof.persons]}")
 
+
+def resolve_model_by_name(name, base_class):
+    """Find mapped class by __tablename__."""
+    for cls in base_class.__subclasses__():
+        if hasattr(cls, "__tablename__") and cls.__tablename__ == name:
+            return cls
+        sub = resolve_model_by_name(name, cls)
+        if sub:
+            return sub
+    return None
+
+
+def build_deep_query(session, table_names, base_class):
+    """Given a list of table names, build a joined query with all relevant relationships."""
+    if not table_names:
+        raise ValueError("No table names provided")
+
+    base_model = resolve_model_by_name(table_names[0], base_class)
+    if not base_model:
+        raise ValueError(f"Unknown table: {table_names[0]}")
+
+    query = session.query(base_model)
+    current_model = base_model
+    loader_chain = []
+
+    for name in table_names[1:]:
+        next_model = resolve_model_by_name(name, base_class)
+        if not next_model:
+            raise ValueError(f"Unknown table: {name}")
+
+        rel = None
+        for rel_name, relation in inspect(current_model).relationships.items():
+            if relation.mapper.class_ == next_model:
+                rel = rel_name
+                break
+
+        if not rel:
+            raise ValueError(f"No relationship from {current_model.__name__} to {next_model.__name__}")
+
+        # Dynamically build joinedload chain
+        if not loader_chain:
+            loader_chain = joinedload(getattr(current_model, rel))
+        else:
+            loader_chain = loader_chain.joinedload(getattr(current_model, rel))
+
+        current_model = next_model
+
+    return query.options(loader_chain)
+
 # ========== MAIN ==========
 if __name__ == "__main__":
     engine = create_engine("sqlite:///mydatabase.db", echo=False)
@@ -302,24 +351,22 @@ if __name__ == "__main__":
     describe_joins("person", Base)
 
     with Session(engine) as session:
-        query = (
-            session.query(Person)
-            .options(
-                joinedload(Person.person_abteilungen)
-                .joinedload(PersonToAbteilung.abteilung)
-                .joinedload(Abteilung.leiter)
-                .joinedload(Person.contacts)
-            )
-            .filter(Person.first_name == "Anna")
+        query = build_deep_query(
+            session,
+            ["person", "person_to_abteilung", "abteilung", "person_contact"],
+            Base,
         )
-
         results = query.filter(Person.first_name == "Anna").all()
+
         for p in results:
-            for p in results:
-                for pa in p.person_abteilungen:
-                    abteilung = pa.abteilung
-                    leiter = abteilung.leiter
-                    if leiter:
-                        emails = [c.email for c in leiter.contacts if c.email]
-                        print(p.first_name, "-> Abt:", abteilung.name, "Leiter:", leiter.first_name, leiter.last_name, "Emails:", emails)
+            print(p.first_name, p.last_name)
+            for c in p.contacts:
+                print("  📧", c.email)
+            for pa in p.person_abteilungen:
+                abt = pa.abteilung
+                if abt and abt.leiter:
+                    print("  🏢 Abteilung:", abt.name)
+                    print("    👨‍🏫 Leiter:", abt.leiter.first_name, abt.leiter.last_name)
+                    for contact in abt.leiter.contacts:
+                        print("      📧", contact.email)
 
