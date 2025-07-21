@@ -46,15 +46,20 @@ def register_all_models(admin_obj, db_session, base):
         fk_cols = [c for c in columns if is_fk_column(c) and c.key != "id"]
 
         if len(normal_cols) == 0 and len(fk_cols) > 0:
-            # Nur id + FKs => benutze relationships als Formularfelder
             form_cols = [rel.key for rel in relationships]
 
             form_ajax_refs = {}
             for rel in relationships:
                 target_model = rel.mapper.class_
-                form_ajax_refs[rel.key] = {'fields': get_searchable_fields(target_model)}
+                search_fields = get_searchable_fields(target_model)
+                if search_fields:
+                    form_ajax_refs[rel.key] = AjaxModelLoader(
+                        rel.key,
+                        db_session,
+                        target_model,
+                        fields=search_fields
+                    )
 
-            # Klasse dynamisch erzeugen, damit wir form_ajax_refs setzen können
             CustomModelView = type(
                 'CustomModelView',
                 (ModelView,),
