@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tables overview</title>
+</head>
+<body>
+<h1>Available tables</h1>
+<ul>
+  {% for table in tables %}
+    <li><a href="{{ url_for('edit_table', tablename=table) }}">{{ table }}</a></li>
+  {% endfor %}
+</ul>
+</body>
+</html>
+

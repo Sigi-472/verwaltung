@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Personen und Abteilungen</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1>Zuweisungen: Person zu Abteilung</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Vorname</th>
+        <th>Nachname</th>
+        <th>Kommentar</th>
+        <th>Abteilung</th>
+        <th>Leiter Vorname</th>
+        <th>Leiter Nachname</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in entries %}
+      <tr>
+        <td>{{ row.person.first_name }}</td>
+        <td>{{ row.person.last_name }}</td>
+        <td>{{ row.person.comment }}</td>
+        <td>{{ row.abteilung.name }}</td>
+        <td>{{ row.abteilung.leiter.first_name if row.abteilung.leiter else "" }}</td>
+        <td>{{ row.abteilung.leiter.last_name if row.abteilung.leiter else "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Neue Zuweisung</h2>
+  <form method="POST">
+    {{ form.hidden_tag() }}
+    <label>{{ form.person_id.label }} {{ form.person_id }}</label><br>
+    <label>{{ form.abteilung_id.label }} {{ form.abteilung_id }}</label><br>
+    {{ form.submit }}
+  </form>
+</body>
+</html>
