@@ -18,6 +18,29 @@ join_views = {
         ]
     },
 
+    "building": {
+        "base_table": "building",
+        "base_alias": "b",
+        "primary_key": "id",
+        "columns": [
+            "b.id AS id",
+            "b.name",
+            "b.building_number",
+            "b.address"
+        ]
+    },
+    "room": {
+        "base_table": "room",
+        "base_alias": "r",
+        "primary_key": "id",
+        "columns": [
+            "r.id AS id",
+            "r.building_id",
+            "r.name",
+            "r.floor"
+        ]
+    },
+
     "person_abteilung": {
         "base_table": "person",
         "base_alias": "p",

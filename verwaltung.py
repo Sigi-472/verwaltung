@@ -98,38 +98,62 @@ def parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value):
 
 
 def update_join_tables(cursor, view_def, updates_by_table, base_table, pk_value):
+    print("DEBUG: update_join_tables gestartet")
+    print(f"DEBUG: view_def joins: {view_def.get('joins', [])}")
+    print(f"DEBUG: updates_by_table keys: {list(updates_by_table.keys())}")
+    print(f"DEBUG: base_table: {base_table}, pk_value: {pk_value}")
+
     for join in view_def.get("joins", []):
         join_table = join["table"]
         join_alias = join.get("alias")
         join_on = join.get("on")
 
+        print(f"DEBUG: Verarbeite Join-Tabelle: {join_table}, Alias: {join_alias}, ON: {join_on}")
+
         if join_table not in updates_by_table:
+            print(f"DEBUG: {join_table} nicht in updates_by_table, überspringe")
             continue
 
         if not join_on:
+            print("DEBUG: Join-Bedingung fehlt")
             return jsonify({"error": "Join-Bedingung fehlt"}), 500
 
         filter_col, filter_val, error_response, status_code = parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value)
         if error_response:
+            print(f"DEBUG: Fehler bei parse_join_on_condition: {error_response}")
             return error_response, status_code
+
+        print(f"DEBUG: filter_col={filter_col}, filter_val={filter_val}")
 
         cursor.execute(f"SELECT id FROM {join_table} WHERE {filter_col} = ?", (filter_val,))
         join_rows = cursor.fetchall()
+        print(f"DEBUG: Gefundene Join-Rows in {join_table}: {join_rows}")
+
         if not join_rows:
+            print(f"DEBUG: Kein Eintrag in {join_table} mit {filter_col}={filter_val} gefunden")
             return jsonify({"error": f"Kein Eintrag in {join_table} mit {filter_col}={filter_val} gefunden"}), 404
 
         for join_row in join_rows:
             join_id = join_row["id"]
+            print(f"DEBUG: Aktualisiere Join-Tabelle {join_table} mit id={join_id}")
             set_clauses = []
             params = []
             for k, v in updates_by_table[join_table].items():
                 set_clauses.append(f"{k} = ?")
                 params.append(v)
+
             params.append(join_id)
             sql = f"UPDATE {join_table} SET {', '.join(set_clauses)} WHERE id = ?"
+            print(f"DEBUG: SQL: {sql}")
+            print(f"DEBUG: Params: {params}")
+
             cursor.execute(sql, params)
+            print(f"DEBUG: rowcount nach Update: {cursor.rowcount}")
             if cursor.rowcount == 0:
+                print(f"DEBUG: Update in {join_table} mit id={join_id} fehlgeschlagen")
                 return jsonify({"error": f"Update in {join_table} mit id={join_id} fehlgeschlagen"}), 500
+
+    print("DEBUG: update_join_tables erfolgreich abgeschlossen")
     return None, None
 
 def extract_alias_table_mapping(view_def):
