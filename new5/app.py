@@ -19,12 +19,58 @@ app.config["FLASK_ADMIN_SWATCH"] = "cerulean"  # Optisch nett
 
 admin = Admin(app, name="My Admin", template_mode="bootstrap4")
 
+# ------------- Hilfsfunktion: Suche nach sinnvollen Suchfeldern ----------
+def get_searchable_fields(model):
+    """Versucht für das Model sinnvolle Felder für AJAX-Suche zu finden."""
+    mapper = inspect(model)
+    # Priorität: name, first_name, last_name, email, id als Fallback
+    candidates = ['name', 'first_name', 'last_name', 'email']
+    available = [c.key for c in mapper.columns]
+    fields = [f for f in candidates if f in available]
+    if not fields:
+        fields = ['id']
+    return fields
 
 # ------------- Automatisch alle Models registrieren --------------
 def register_all_models(admin_obj, db_session, base):
+
+    def is_fk_column(column):
+        return len(column.foreign_keys) > 0
+
+    def create_modelview_for_model(model):
+        mapper = inspect(model)
+        columns = mapper.columns
+        relationships = mapper.relationships
+
+        normal_cols = [c for c in columns if not is_fk_column(c) and c.key != "id"]
+        fk_cols = [c for c in columns if is_fk_column(c) and c.key != "id"]
+
+        if len(normal_cols) == 0 and len(fk_cols) > 0:
+            # Nur id + FKs => benutze relationships als Formularfelder
+            form_cols = [rel.key for rel in relationships]
+
+            form_ajax_refs = {}
+            for rel in relationships:
+                target_model = rel.mapper.class_
+                form_ajax_refs[rel.key] = {'fields': get_searchable_fields(target_model)}
+
+            # Klasse dynamisch erzeugen, damit wir form_ajax_refs setzen können
+            CustomModelView = type(
+                'CustomModelView',
+                (ModelView,),
+                {
+                    'form_columns': form_cols,
+                    'form_ajax_refs': form_ajax_refs
+                }
+            )
+            return CustomModelView(model, db_session)
+        else:
+            return ModelView(model, db_session)
+
     for mapper in base.registry.mappers:
         cls = mapper.class_
-        admin_obj.add_view(ModelView(cls, db_session))
+        admin_view = create_modelview_for_model(cls)
+        admin_obj.add_view(admin_view)
 
 register_all_models(admin, db_session, Base)
 
