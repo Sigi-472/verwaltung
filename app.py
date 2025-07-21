@@ -5,6 +5,11 @@ import verwaltung
 import os
 
 join_views = {
+    "person": {
+        "base_table": "person",
+        "base_alias": "p",
+        "primary_key": "id"
+    },
     "person_abteilung": {
         "base_table": "person",
         "base_alias": "p",
@@ -162,23 +167,11 @@ join_views = {
     }
 }
         
-custom_links = []
-
 app = Flask(__name__)
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET"])
 def index():
-    global custom_links
-
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        url = request.form.get("url", "").strip()
-
-        if name and url:
-            custom_links.append({"name": name, "url": url})
-        return redirect(url_for("index"))
-
-    return render_template("index.html", views=join_views.keys(), custom_links=custom_links)
+    return render_template("index.html", views=join_views.keys())
 
 @app.route("/api/data/abteilung", methods=["POST", "PUT", "DELETE"])
 def api_abteilung():
