@@ -469,9 +469,6 @@ def api_update_generic_view(view_name):
 
         updates_by_table = verwaltung.group_updates_by_table(update_fields, data, col_field_map, alias_to_table)
 
-        alias_to_table = view_def.get("writable_tables", {}).copy()
-        alias_to_table["base_alias"] = view_def.get("base_alias")
-
         # Update base table
         if base_table in updates_by_table:
             

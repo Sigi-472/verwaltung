@@ -119,7 +119,8 @@ def parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value, a
     except Exception as e:
         return None, None, f"Fehler bei Join-Bedingung: {str(e)}", 500
 
-
+def invert_dict(d):
+    return {v: k for k, v in d.items()}
 
 def update_join_tables(cursor, view_def, updates_by_table, base_table, pk_value, alias_to_table):
     for join in view_def.get("joins", []):
