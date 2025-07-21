@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Datenbank Tabellen</title>
+</head>
+<body>
+  <h1>Tabellenübersicht</h1>
+  <ul>
+    {% for table in tables %}
+      <li><a href="{{ url_for('view_table', table=table) }}">{{ table }}</a></li>
+    {% endfor %}
+  </ul>
+</body>
+</html>
+
