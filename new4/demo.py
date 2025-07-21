@@ -315,4 +315,11 @@ if __name__ == "__main__":
 
         results = query.filter(Person.first_name == "Anna").all()
         for p in results:
-            print(p.id, p.first_name, p.last_name)
+            for p in results:
+                for pa in p.person_abteilungen:
+                    abteilung = pa.abteilung
+                    leiter = abteilung.leiter
+                    if leiter:
+                        emails = [c.email for c in leiter.contacts if c.email]
+                        print(p.first_name, "-> Abt:", abteilung.name, "Leiter:", leiter.first_name, leiter.last_name, "Emails:", emails)
+
