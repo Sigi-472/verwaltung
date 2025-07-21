@@ -101,4 +101,3 @@ if __name__ == "__main__":
         html_table = generate_editable_table(rows, columns, id_column='id')
 
         print(html_table)
-
