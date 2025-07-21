@@ -1,8 +1,6 @@
 from db_defs import *
 from db_helpers import describe_possible_joins, add_all_and_commit, add_and_commit, delete_and_commit, execute_and_commit
 
-# ========== DEMO + JOIN-BEISPIELE ==========
-
 def insert_sample_data(session):
     anna = Person(first_name="Anna", last_name="Müller")
     max = Person(first_name="Max", last_name="Schmidt")
