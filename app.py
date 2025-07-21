@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, render_template, render_template_string, request, jsonify
+from flask import Flask, render_template, request, jsonify
 from typing import Any
 import verwaltung
 import os
@@ -222,8 +222,6 @@ def api_abteilung():
             return jsonify({"status": "deleted"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-from flask import Flask, request, jsonify, render_template
-import sqlite3  # oder dein DB-Adapter
 
 @app.route("/view/<view_name>/", methods=["GET"])
 def generic_join_edit_page(view_name):
