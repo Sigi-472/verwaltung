@@ -71,7 +71,17 @@ def insert_sample_data(session):
 
     session.commit()
 
-def demo_queries(engine):
+# ========== MAIN ==========
+if __name__ == "__main__":
+    engine = create_engine("sqlite:///mydatabase.db", echo=False)
+    Base.metadata.drop_all(engine)  # Optional: Leert die DB vorher
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        insert_sample_data(session)
+
+    describe_joins("person", Base)
+
     with Session(engine) as session:
         print("\nBeispiel: Alle Personen mit ihren Abteilungen:")
         for entry in session.query(Person).join(PersonToAbteilung).join(Abteilung).all():
@@ -87,20 +97,7 @@ def demo_queries(engine):
         for prof in session.query(Professorship).join(ProfessorshipToPerson).join(Person).all():
             print(f"{prof.name} → {[p.person.first_name + ' ' + p.person.last_name for p in prof.persons]}")
 
-# ========== MAIN ==========
-if __name__ == "__main__":
-    engine = create_engine("sqlite:///mydatabase.db", echo=False)
-    Base.metadata.drop_all(engine)  # Optional: Leert die DB vorher
-    Base.metadata.create_all(engine)
 
-    with Session(engine) as session:
-        insert_sample_data(session)
-
-    demo_queries(engine)
-
-    describe_joins("person", Base)
-
-    with Session(engine) as session:
         query = (
             session.query(Person)
             .options(
