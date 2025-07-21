@@ -17,7 +17,7 @@ class FlaskAppTestCase(unittest.TestCase):
     def test_view_person_table(self):
         response = self.client.get("/table/person")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"first_names", response.data)
+        self.assertIn(b"first_name", response.data)
 
     def test_view_abteilung_table(self):
         response = self.client.get("/table/abteilung")
@@ -30,7 +30,7 @@ class FlaskAppTestCase(unittest.TestCase):
 
     def test_post_person(self):
         response = self.client.post("/api/data/person", json={
-            "first_names": "Max",
+            "first_name": "Max",
             "last_name": "Mustermann",
             "comment": "Testeintrag"
         })
@@ -41,7 +41,7 @@ class FlaskAppTestCase(unittest.TestCase):
         # ID muss real existieren, sonst kommt 500
         response = self.client.put("/api/data/person", json={
             "id": 1,
-            "first_names": "Maximilian",
+            "first_name": "Maximilian",
             "last_name": "Muster",
             "comment": "Updated"
         })

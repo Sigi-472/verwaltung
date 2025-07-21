@@ -2,7 +2,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE person (
   id INTEGER PRIMARY KEY,
-  first_names TEXT,
+  first_name TEXT,
   last_name TEXT,
   created_at TIMESTAMP,
   comment TEXT

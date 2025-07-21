@@ -190,7 +190,7 @@ def init_db(connection: sqlite3.Connection) -> None:
             """
             CREATE TABLE IF NOT EXISTS person (
                 id INTEGER PRIMARY KEY,
-                first_names TEXT,
+                first_name TEXT,
                 last_name TEXT,
                 created_at TIMESTAMP,
                 comment TEXT
@@ -416,7 +416,7 @@ def _get_connection() -> sqlite3.Connection:
     return DB_CONN
 
 @beartype
-def insert_person(first_names: str, last_name: str, comment: Optional[str] = None, conn: Optional[sqlite3.Connection] = None) -> int:
+def insert_person(first_name: str, last_name: str, comment: Optional[str] = None, conn: Optional[sqlite3.Connection] = None) -> int:
     if not conn:
         conn = _get_connection()
 
@@ -424,9 +424,9 @@ def insert_person(first_names: str, last_name: str, comment: Optional[str] = Non
     try:
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO person (first_names, last_name, created_at, comment)
+            INSERT INTO person (first_name, last_name, created_at, comment)
             VALUES (?, ?, ?, ?)
-        """, (first_names, last_name, created_at, comment))
+        """, (first_name, last_name, created_at, comment))
         conn.commit()
         return cur.lastrowid
     except sqlite3.Error as e:
@@ -434,15 +434,15 @@ def insert_person(first_names: str, last_name: str, comment: Optional[str] = Non
         raise RuntimeError(f"Failed to insert person: {e}")
 
 @beartype
-def update_person(person_id: int, *, first_names: Optional[str] = None, last_name: Optional[str] = None, comment: Optional[str] = None, conn: Optional[sqlite3.Connection] = None) -> None:
+def update_person(person_id: int, *, first_name: Optional[str] = None, last_name: Optional[str] = None, comment: Optional[str] = None, conn: Optional[sqlite3.Connection] = None) -> None:
     if not conn:
         conn = _get_connection()
 
     fields = []
     values = []
-    if first_names is not None:
-        fields.append("first_names = ?")
-        values.append(first_names)
+    if first_name is not None:
+        fields.append("first_name = ?")
+        values.append(first_name)
     if last_name is not None:
         fields.append("last_name = ?")
         values.append(last_name)

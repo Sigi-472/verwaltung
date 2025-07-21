@@ -12,7 +12,7 @@ join_view_person_abteilung = {
     ],
     "columns": [
         "p.id AS id",
-        "p.first_names",
+        "p.first_name",
         "p.last_name",
         "p.created_at",
         "p.comment",
@@ -38,7 +38,7 @@ def view_table(table: str):
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM person")
         rows = cursor.fetchall()
-        columns = rows[0].keys() if rows else ["id", "first_names", "last_name", "created_at", "comment"]
+        columns = rows[0].keys() if rows else ["id", "first_name", "last_name", "created_at", "comment"]
         return render_template("table.html", table=table, columns=columns, rows=rows)
 
     elif table == "abteilung":
@@ -58,7 +58,7 @@ def api_person():
         data = request.json
         try:
             person_id = verwaltung.insert_person(
-                first_names=data.get("first_names", ""),
+                first_name=data.get("first_name", ""),
                 last_name=data.get("last_name", ""),
                 comment=data.get("comment")
             )
@@ -71,7 +71,7 @@ def api_person():
         try:
             verwaltung.update_person(
                 person_id=data["id"],
-                first_names=data.get("first_names"),
+                first_name=data.get("first_name"),
                 last_name=data.get("last_name"),
                 comment=data.get("comment")
             )

@@ -36,13 +36,13 @@ class TestVerwaltungDatabase(unittest.TestCase):
         person_id = verwaltung.insert_person("Alice", "Anderson", "Test Person", conn=self.conn)
         self.assertIsInstance(person_id, int)
 
-        verwaltung.update_person(person_id, first_names="Alicia", conn=self.conn)
+        verwaltung.update_person(person_id, first_name="Alicia", conn=self.conn)
 
         cur = self.conn.cursor()
-        cur.execute("SELECT first_names FROM person WHERE id = ?", (person_id,))
+        cur.execute("SELECT first_name FROM person WHERE id = ?", (person_id,))
         row = cur.fetchone()
         self.assertIsNotNone(row, f"Kein Eintrag mit id={person_id} gefunden!")
-        self.assertEqual(row["first_names"], "Alicia")
+        self.assertEqual(row["first_name"], "Alicia")
 
         verwaltung.delete_person(person_id, conn=self.conn)
         cur.execute("SELECT * FROM person WHERE id = ?", (person_id,))
