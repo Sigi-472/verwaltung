@@ -80,6 +80,8 @@ def generate_editable_table(rows, columns, id_column='id', allow_add_row=False):
                     val = ""
             else:
                 val = getattr(row, col, "")
+                val = "" if val is None else val
+
             input_name = f"{table}:{col}:{row_id}"
             html.append(f'<td><input type="text" name="{input_name}" value="{val}"></td>')
         html.append('</tr>')
