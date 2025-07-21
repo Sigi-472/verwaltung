@@ -308,7 +308,7 @@ if __name__ == "__main__":
                 joinedload(Person.person_abteilungen)
                 .joinedload(PersonToAbteilung.abteilung)
                 .joinedload(Abteilung.leiter)
-                .joinedload(Person.contacts)  # Kontakte des Leiters
+                .joinedload(Person.contacts)
             )
             .filter(Person.first_name == "Anna")
         )
