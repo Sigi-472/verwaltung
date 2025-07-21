@@ -1,5 +1,5 @@
 from db_defs import *
-from db_helpers import describe_possible_joins, add_all_and_commit, add_and_commit, delete_and_commit, execute_and_commit
+from db_helpers import describe_possible_joins, add_all_and_commit, add_and_commit, delete_and_commit, execute_and_commit, generate_editable_table
 
 def insert_sample_data(session):
     anna = Person(first_name="Anna", last_name="Müller")
@@ -83,4 +83,22 @@ if __name__ == "__main__":
                     if leiter:
                         emails = [c.email for c in leiter.contacts if c.email]
                         print(p.first_name, "-> Abt:", abteilung.name, "Leiter:", leiter.first_name, leiter.last_name, "Emails:", emails)
+
+        print("==============")
+
+        query = session.query(Person).outerjoin(Person.contacts)  # Beispiel: `contacts` ist Beziehung zu PersonContact
+        rows = query.all()
+
+        columns = [
+            ("Person", "first_name", "First Name"),
+            ("Person", "last_name", "Last Name"),
+            ("Person", "comment", "Comment"),
+            ("contacts", "email", "Emails", True),   # True = mehrere (Liste)
+            ("contacts", "fax", "Faxes", True),
+        ]
+
+
+        html_table = generate_editable_table(rows, columns, id_column='id')
+
+        print(html_table)
 
