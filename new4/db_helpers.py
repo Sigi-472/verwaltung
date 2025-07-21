@@ -20,5 +20,3 @@ def describe_possible_joins(table_name: str, base_class):
 
     if not found:
         print("  Keine Joins vorhanden.")
-
-
