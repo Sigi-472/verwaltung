@@ -418,88 +418,45 @@ def api_update_generic_view(view_name):
 
     conn = verwaltung._get_connection()
     cursor = conn.cursor()
+
     try:
         base_table = view_def["base_table"]
 
-        # Spalte hinzufügen
+        # Add column
         if "__add_column__" in data:
-            new_col = data["__add_column__"]
-            col_name = new_col.get("name")
-            col_type = new_col.get("type", "TEXT")
-            if not col_name:
-                return jsonify({"error": "Spaltenname fehlt"}), 400
-            cursor.execute(f"ALTER TABLE {base_table} ADD COLUMN {col_name} {col_type}")
-            conn.commit()
-            return jsonify({"success": True, "message": f"Spalte '{col_name}' hinzugefügt"})
+            return verwaltung.add_column(cursor, conn, base_table, data["__add_column__"])
 
-        # Spalte löschen
+        # Drop column
         if "__drop_column__" in data:
-            drop_col = data["__drop_column__"]
-            if not drop_col:
-                return jsonify({"error": "Keine Spalte zum Löschen angegeben"}), 400
-            # ACHTUNG: SQLite unterstützt `DROP COLUMN` erst ab Version 3.35
-            try:
-                cursor.execute(f"ALTER TABLE {base_table} DROP COLUMN {drop_col}")
-            except Exception as e:
-                return jsonify({"error": f"Konnte Spalte nicht löschen: {str(e)}"}), 500
-            conn.commit()
-            return jsonify({"success": True, "message": f"Spalte '{drop_col}' gelöscht"})
+            return verwaltung.drop_column(cursor, conn, base_table, data["__drop_column__"])
 
         pk_field = view_def["primary_key"]
-        if pk_field not in data:
-            return jsonify({"error": f"Primärschlüssel '{pk_field}' fehlt"}), 400
+        err = verwaltung.validate_primary_key(data, pk_field)
+        if err:
+            return err
 
         pk_value = data[pk_field]
+
         alias_to_table = verwaltung.extract_alias_table_mapping(view_def)
         col_field_map = verwaltung.extract_column_field_mapping(view_def)
 
-        update_fields = [
-            k for k in data if k != pk_field and k in col_field_map
-        ]
+        update_fields, err = verwaltung.extract_updates(data, pk_field, col_field_map)
+        if err:
+            return err
 
-        if not update_fields:
-            return jsonify({"error": "Keine gültigen Felder zum Aktualisieren"}), 400
+        updates_by_table = verwaltung.group_updates_by_table(update_fields, data, col_field_map, alias_to_table)
 
-        updates_by_table = {}
-        for field in update_fields:
-            alias, real_field = col_field_map[field]
-            table = alias_to_table.get(alias)
-            if not table:
-                continue
-            updates_by_table.setdefault(table, {})[real_field] = data[field]
-
-        # Update der Base-Tabelle
+        # Update base table
         if base_table in updates_by_table:
-            set_clauses = []
-            params = []
-            for k, v in updates_by_table[base_table].items():
-                set_clauses.append(f"{k} = ?")
-                params.append(v)
-            params.append(pk_value)
-            sql = f"UPDATE {base_table} SET {', '.join(set_clauses)} WHERE id = ?"
-            cursor.execute(sql, params)
+            verwaltung.app_update_table(cursor, base_table, updates_by_table[base_table], pk_value)
 
-        # Update verbundene Tabellen
-        for join in view_def.get("joins", []):
-            join_table = join["table"]
-            if join_table not in updates_by_table:
-                continue
-            cursor.execute(f"SELECT id FROM {join_table} WHERE person_id = ?", (pk_value,))
-            row = cursor.fetchone()
-            if not row:
-                return jsonify({"error": f"Eintrag in {join_table} nicht gefunden"}), 404
-            join_id = row["id"]
-            set_clauses = []
-            params = []
-            for k, v in updates_by_table[join_table].items():
-                set_clauses.append(f"{k} = ?")
-                params.append(v)
-            params.append(join_id)
-            sql = f"UPDATE {join_table} SET {', '.join(set_clauses)} WHERE id = ?"
-            cursor.execute(sql, params)
+        # Update join tables
+        err, status = verwaltung.update_join_tables(cursor, view_def, updates_by_table, base_table, pk_value)
+        if err:
+            return err, status
 
         conn.commit()
-        return jsonify({"success": True})
+        return jsonify({"success": True, "message": "Update erfolgreich"})
 
     except Exception as e:
         conn.rollback()

@@ -9,6 +9,129 @@ import re
 
 DB_CONN: Optional[sqlite3.Connection] = None
 
+
+def add_column(cursor, conn, base_table, new_col):
+    col_name = new_col.get("name")
+    col_type = new_col.get("type", "TEXT")
+    if not col_name:
+        return jsonify({"error": "Spaltenname fehlt"}), 400
+    try:
+        cursor.execute(f"ALTER TABLE {base_table} ADD COLUMN {col_name} {col_type}")
+        conn.commit()
+        return jsonify({"success": True, "message": f"Spalte '{col_name}' hinzugefügt"})
+    except Exception as e:
+        return jsonify({"error": f"Spalte konnte nicht hinzugefügt werden: {str(e)}"}), 500
+
+
+def drop_column(cursor, conn, base_table, drop_col):
+    if not drop_col:
+        return jsonify({"error": "Keine Spalte zum Löschen angegeben"}), 400
+    try:
+        cursor.execute(f"ALTER TABLE {base_table} DROP COLUMN {drop_col}")
+        conn.commit()
+        return jsonify({"success": True, "message": f"Spalte '{drop_col}' gelöscht"})
+    except Exception as e:
+        return jsonify({"error": f"Konnte Spalte nicht löschen: {str(e)}"}), 500
+
+
+def validate_primary_key(data, pk_field):
+    if pk_field not in data:
+        return jsonify({"error": f"Primärschlüssel '{pk_field}' fehlt"}), 400
+    return None
+
+
+def extract_updates(data, pk_field, col_field_map):
+    update_fields = [k for k in data if k != pk_field and k in col_field_map]
+    if not update_fields:
+        return None, jsonify({"error": "Keine gültigen Felder zum Aktualisieren"}), 400
+    return update_fields, None
+
+
+def group_updates_by_table(update_fields, data, col_field_map, alias_to_table):
+    updates_by_table = {}
+    for field in update_fields:
+        alias, real_field = col_field_map[field]
+        table = alias_to_table.get(alias)
+        if not table:
+            continue
+        updates_by_table.setdefault(table, {})[real_field] = data[field]
+    return updates_by_table
+
+
+def app_update_table(cursor, table, fields_values, pk_value):
+    set_clauses = []
+    params = []
+    for k, v in fields_values.items():
+        set_clauses.append(f"{k} = ?")
+        params.append(v)
+    params.append(pk_value)
+    sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE id = ?"
+    cursor.execute(sql, params)
+
+
+def parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value):
+    try:
+        left, right = join_on.split("=")
+        left = left.strip()
+        right = right.strip()
+
+        if left.startswith(join_alias + "."):
+            filter_col = left.split(".")[1]
+            cursor.execute(f"SELECT {right.split('.')[1]} FROM {base_table} WHERE id = ?", (pk_value,))
+            row = cursor.fetchone()
+            if not row:
+                return None, None, jsonify({"error": f"Basis-Datensatz in {base_table} nicht gefunden"}), 404
+            filter_val = row[0]
+        elif right.startswith(join_alias + "."):
+            filter_col = right.split(".")[1]
+            cursor.execute(f"SELECT {left.split('.')[1]} FROM {base_table} WHERE id = ?", (pk_value,))
+            row = cursor.fetchone()
+            if not row:
+                return None, None, jsonify({"error": f"Basis-Datensatz in {base_table} nicht gefunden"}), 404
+            filter_val = row[0]
+        else:
+            return None, None, jsonify({"error": "Unbekannte Join-Bedingung"}), 400
+
+        return filter_col, filter_val, None, None
+    except Exception as e:
+        return None, None, jsonify({"error": f"Fehler bei Join-Bedingung: {str(e)}"}), 500
+
+
+def update_join_tables(cursor, view_def, updates_by_table, base_table, pk_value):
+    for join in view_def.get("joins", []):
+        join_table = join["table"]
+        join_alias = join.get("alias")
+        join_on = join.get("on")
+
+        if join_table not in updates_by_table:
+            continue
+
+        if not join_on:
+            return jsonify({"error": "Join-Bedingung fehlt"}), 500
+
+        filter_col, filter_val, error_response, status_code = parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value)
+        if error_response:
+            return error_response, status_code
+
+        cursor.execute(f"SELECT id FROM {join_table} WHERE {filter_col} = ?", (filter_val,))
+        join_rows = cursor.fetchall()
+        if not join_rows:
+            return jsonify({"error": f"Kein Eintrag in {join_table} mit {filter_col}={filter_val} gefunden"}), 404
+
+        for join_row in join_rows:
+            join_id = join_row["id"]
+            set_clauses = []
+            params = []
+            for k, v in updates_by_table[join_table].items():
+                set_clauses.append(f"{k} = ?")
+                params.append(v)
+            params.append(join_id)
+            sql = f"UPDATE {join_table} SET {', '.join(set_clauses)} WHERE id = ?"
+            cursor.execute(sql, params)
+            if cursor.rowcount == 0:
+                return jsonify({"error": f"Update in {join_table} mit id={join_id} fehlgeschlagen"}), 500
+    return None, None
+
 def extract_alias_table_mapping(view_def):
     mapping = {view_def["base_alias"]: view_def["base_table"]}
     for join in view_def.get("joins", []):
@@ -59,7 +182,7 @@ def insert_into_table(conn: sqlite3.Connection, table: str, data: Dict[str, Any]
         raise RuntimeError(f"Fehler beim Insert in {table}: {e}")
 
 @beartype
-def update_table(conn: sqlite3.Connection, table: str, primary_key: str, data: Dict[str, Any]) -> None:
+def update_table(conn: sqlite3.Connection, cursor: sqlite3.Cursor, table: str, primary_key: str, data: Dict[str, Any]) -> None:
     """
     Update Eintrag in Tabelle. data muss primary_key enthalten.
 
@@ -87,7 +210,6 @@ def update_table(conn: sqlite3.Connection, table: str, primary_key: str, data: D
 
     sql = f"UPDATE {table} SET {set_clause} WHERE {primary_key} = ?"
 
-    cursor = conn.cursor()
     try:
         cursor.execute(sql, values)
         conn.commit()
