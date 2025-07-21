@@ -36,3 +36,7 @@ def delete_and_commit(session, obj):
 def execute_and_commit(session, stmt):
     session.execute(stmt)
     session.commit()
+
+def add_and_commit_many(session, *objs):
+    session.add_all(objs)
+    session.commit()

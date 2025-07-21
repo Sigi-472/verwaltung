@@ -4,38 +4,32 @@ from db_helpers import describe_possible_joins, add_all_and_commit, add_and_comm
 def insert_sample_data(session):
     anna = Person(first_name="Anna", last_name="Müller")
     max = Person(first_name="Max", last_name="Schmidt")
-    add_all_and_commit(session, [anna, max])  # commit direkt nach add
+    add_and_commit_many(session, anna, max)
 
     it = Abteilung(name="IT", abteilungsleiter_id=anna.id)
-    add_and_commit(session, it)
-
-    add_and_commit(session, PersonToAbteilung(person_id=anna.id, abteilung_id=it.id))
-    add_and_commit(session, PersonToAbteilung(person_id=max.id, abteilung_id=it.id))
+    add_and_commit_many(session, it,
+        PersonToAbteilung(person_id=anna.id, abteilung_id=it.id),
+        PersonToAbteilung(person_id=max.id, abteilung_id=it.id))
 
     prof = Professorship(name="AI Research")
-    add_and_commit(session, prof)
-    add_and_commit(session, ProfessorshipToPerson(person_id=anna.id, professorship_id=prof.id))
-    add_and_commit(session, ProfessorshipToPerson(person_id=max.id, professorship_id=prof.id))
+    add_and_commit_many(session, prof,
+        ProfessorshipToPerson(person_id=anna.id, professorship_id=prof.id),
+        ProfessorshipToPerson(person_id=max.id, professorship_id=prof.id))
 
     building = Building(name="Hauptgebäude", building_number="H1", address="Campusstraße 1")
-    add_and_commit(session, building)
-
     room1 = Room(name="2.01", floor=2, building_id=building.id)
     room2 = Room(name="2.02", floor=2, building_id=building.id)
-    add_all_and_commit(session, [room1, room2])
+    add_and_commit_many(session, building, room1, room2)
 
-    add_and_commit(session, PersonToRoom(person_id=anna.id, room_id=room1.id))
+    add_and_commit_many(session,
+        PersonToRoom(person_id=anna.id, room_id=room1.id))
 
     transponder = Transponder(issuer_id=max.id, owner_id=anna.id, serial_number="T-123")
-    add_and_commit(session, transponder)
-    add_all_and_commit(session, [
+    add_and_commit_many(session, transponder,
         TransponderToRoom(transponder_id=transponder.id, room_id=room1.id),
-        TransponderToRoom(transponder_id=transponder.id, room_id=room2.id),
-    ])
+        TransponderToRoom(transponder_id=transponder.id, room_id=room2.id))
 
-    contact = PersonContact(person_id=anna.id, email="anna@example.com", phone="1234")
-    add_and_commit(session, contact)
-
+    add_and_commit_many(session, PersonContact(person_id=anna.id, email="anna@example.com", phone="1234"))
 
 # ========== MAIN ==========
 if __name__ == "__main__":
