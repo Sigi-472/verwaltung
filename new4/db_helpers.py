@@ -60,6 +60,8 @@ def execute_and_commit(session, stmt):
     session.execute(stmt)
     session.commit()
 
+from html import escape
+
 def generate_editable_table(rows, columns, id_column='id', allow_add_row=False):
     from html import escape
     html = ['<form method="post"><table border="1"><thead><tr>']
@@ -71,24 +73,15 @@ def generate_editable_table(rows, columns, id_column='id', allow_add_row=False):
         row_id = getattr(row, id_column)
         html.append('<tr>')
         for (table, col, label, *rest) in columns:
-            is_list = rest[0] if rest else False
-            if is_list:
-                related_objs = getattr(row, table, [])
-                vals = [str(getattr(obj, col)) for obj in related_objs]
-                val = ", ".join(vals)
+            if "." in col:
+                base, sub = col.split(".", 1)
+                fk_obj = getattr(row, base, None)
+                val = getattr(fk_obj, sub, "") if fk_obj else ""
             else:
-                # verschachtelt: issuer_id.name
-                if "." in col:
-                    base, sub = col.split(".", 1)
-                    fk_obj = getattr(row, base, None)
-                    val = getattr(fk_obj, sub, "") if fk_obj else ""
-                    readonly = 'readonly'
-                else:
-                    val = getattr(row, col, "")
-                    readonly = ''
-                val = "" if val is None else val
+                val = getattr(row, col, "")
+            val = "" if val is None else val
             input_name = f"{table}:{col}:{row_id}"
-            html.append(f'<td><input type="text" name="{input_name}" value="{escape(str(val))}" {readonly}></td>')
+            html.append(f'<td><input type="text" name="{input_name}" value="{escape(str(val))}"></td>')
         html.append('</tr>')
 
     if allow_add_row:
