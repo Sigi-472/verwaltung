@@ -5,8 +5,29 @@ import sqlite3
 from datetime import datetime, date
 from typing import List, Dict, Optional, Tuple, Any, Union
 from beartype import beartype
+import re
 
 DB_CONN: Optional[sqlite3.Connection] = None
+
+def extract_alias_table_mapping(view_def):
+    mapping = {view_def["base_alias"]: view_def["base_table"]}
+    for join in view_def.get("joins", []):
+        mapping[join["alias"]] = join["table"]
+    return mapping
+
+def extract_column_field_mapping(view_def):
+    col_map = {}
+    for col in view_def["columns"]:
+        m = re.match(r"(\w+)\.(\w+)\s+AS\s+(\w+)", col.strip(), re.IGNORECASE)
+        if m:
+            alias, field, as_name = m.groups()
+            col_map[as_name] = (alias, field)
+        else:
+            m2 = re.match(r"(\w+)\.(\w+)", col.strip())
+            if m2:
+                alias, field = m2.groups()
+                col_map[field] = (alias, field)
+    return col_map
 
 @beartype
 def insert_into_table(conn: sqlite3.Connection, table: str, data: Dict[str, Any]) -> int:
