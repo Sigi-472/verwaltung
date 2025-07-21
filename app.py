@@ -124,8 +124,6 @@ def api_abteilung():
 
 @app.route("/api/join/person_abteilung", methods=["PUT"])
 def api_update_person_abteilung():
-    # Definition der Join-View (kann man auch auslagern)
-
     data = request.get_json()
     if not data:
         return jsonify({"error": "Keine JSON-Daten empfangen"}), 400
