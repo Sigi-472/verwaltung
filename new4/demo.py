@@ -1,55 +1,43 @@
 from db_defs import *
-from db_helpers import describe_possible_joins
+from db_helpers import describe_possible_joins, add_all_and_commit, add_and_commit, delete_and_commit, execute_and_commit
 
 # ========== DEMO + JOIN-BEISPIELE ==========
 
 def insert_sample_data(session):
-    # Personen
     anna = Person(first_name="Anna", last_name="Müller")
     max = Person(first_name="Max", last_name="Schmidt")
-    session.add_all([anna, max])
-    session.flush()
+    add_all_and_commit(session, [anna, max])  # commit direkt nach add
 
-    # Abteilung
     it = Abteilung(name="IT", abteilungsleiter_id=anna.id)
-    session.add(it)
-    session.flush()
+    add_and_commit(session, it)
 
-    # Zuordnung Person ↔ Abteilung
-    session.add(PersonToAbteilung(person_id=anna.id, abteilung_id=it.id))
-    session.add(PersonToAbteilung(person_id=max.id, abteilung_id=it.id))
+    add_and_commit(session, PersonToAbteilung(person_id=anna.id, abteilung_id=it.id))
+    add_and_commit(session, PersonToAbteilung(person_id=max.id, abteilung_id=it.id))
 
-    # Professur und Zuordnung
     prof = Professorship(name="AI Research")
-    session.add(prof)
-    session.flush()
-    session.add(ProfessorshipToPerson(person_id=anna.id, professorship_id=prof.id))
-    session.add(ProfessorshipToPerson(person_id=max.id, professorship_id=prof.id))
+    add_and_commit(session, prof)
+    add_and_commit(session, ProfessorshipToPerson(person_id=anna.id, professorship_id=prof.id))
+    add_and_commit(session, ProfessorshipToPerson(person_id=max.id, professorship_id=prof.id))
 
-    # Gebäude und Raum
     building = Building(name="Hauptgebäude", building_number="H1", address="Campusstraße 1")
-    session.add(building)
-    session.flush()
+    add_and_commit(session, building)
+
     room1 = Room(name="2.01", floor=2, building_id=building.id)
     room2 = Room(name="2.02", floor=2, building_id=building.id)
-    session.add_all([room1, room2])
-    session.flush()
+    add_all_and_commit(session, [room1, room2])
 
-    # Person zu Raum
-    session.add(PersonToRoom(person_id=anna.id, room_id=room1.id))
+    add_and_commit(session, PersonToRoom(person_id=anna.id, room_id=room1.id))
 
-    # Transponder + Zuordnung zu Raum
     transponder = Transponder(issuer_id=max.id, owner_id=anna.id, serial_number="T-123")
-    session.add(transponder)
-    session.flush()
-    session.add(TransponderToRoom(transponder_id=transponder.id, room_id=room1.id))
-    session.add(TransponderToRoom(transponder_id=transponder.id, room_id=room2.id))
+    add_and_commit(session, transponder)
+    add_all_and_commit(session, [
+        TransponderToRoom(transponder_id=transponder.id, room_id=room1.id),
+        TransponderToRoom(transponder_id=transponder.id, room_id=room2.id),
+    ])
 
-    # Kontakt
     contact = PersonContact(person_id=anna.id, email="anna@example.com", phone="1234")
-    session.add(contact)
+    add_and_commit(session, contact)
 
-    session.commit()
 
 # ========== MAIN ==========
 if __name__ == "__main__":

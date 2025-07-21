@@ -20,3 +20,19 @@ def describe_possible_joins(table_name: str, base_class):
 
     if not found:
         print("  Keine Joins vorhanden.")
+
+def add_and_commit(session, obj):
+    session.add(obj)
+    session.commit()
+
+def add_all_and_commit(session, objs):
+    session.add_all(objs)
+    session.commit()
+
+def delete_and_commit(session, obj):
+    session.delete(obj)
+    session.commit()
+
+def execute_and_commit(session, stmt):
+    session.execute(stmt)
+    session.commit()
