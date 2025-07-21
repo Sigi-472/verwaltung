@@ -93,4 +93,3 @@ def generate_editable_table(rows, columns, id_column='id', allow_add_row=False):
 
     html.append('</tbody></table><input type="submit" value="Save"></form>')
     return "\n".join(html)
-
