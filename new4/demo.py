@@ -1,7 +1,8 @@
-from sqlalchemy import (
-    create_engine, Column, Integer, String, Text, ForeignKey, Date, Float, TIMESTAMP
-)
-from sqlalchemy.orm import declarative_base, relationship, Session, class_mapper, RelationshipProperty
+from sqlalchemy import (create_engine, Column, Integer, String, Text, ForeignKey, Date, Float, TIMESTAMP)
+from sqlalchemy.orm.util import AliasedClass
+from sqlalchemy.inspection import inspect
+from sqlalchemy.exc import NoInspectionAvailable
+from sqlalchemy.orm import declarative_base, relationship, Session, class_mapper, RelationshipProperty, aliased, joinedload
 
 Base = declarative_base()
 
@@ -162,6 +163,46 @@ class Inventory(Base):
 
 # ========== DEMO + JOIN-BEISPIELE ==========
 
+def build_joined_query(table_names: list[str], session: Session):
+    # Alle bekannten Models aus Base holen
+    known_models = {cls.__tablename__: cls for cls in Base.__subclasses__()}
+
+    # Models aus Eingabeliste sammeln
+    try:
+        models = [known_models[name] for name in table_names]
+    except KeyError as e:
+        raise ValueError(f"Unbekannter Tabellenname: {e.args[0]}")
+
+    if not models:
+        raise ValueError("Keine gültigen Tabellen angegeben.")
+
+    # Starte mit erster Tabelle
+    base_model = models[0]
+    query = session.query(base_model)
+    joined = {base_model}
+
+    for model in models[1:]:
+        found = False
+        # Versuche: base_model → model
+        for rel in inspect(base_model).relationships:
+            if rel.mapper.class_ == model:
+                query = query.join(getattr(base_model, rel.key))
+                joined.add(model)
+                found = True
+                break
+        if not found:
+            # Versuche: model → base_model
+            for rel in inspect(model).relationships:
+                if rel.mapper.class_ == base_model:
+                    query = query.join(model)
+                    joined.add(model)
+                    found = True
+                    break
+        if not found:
+            raise ValueError(f"Keine direkte Beziehung zwischen {base_model.__name__} und {model.__name__} gefunden.")
+
+    return query
+
 def describe_joins(table_name: str, base_class):
     # Mapping aller ORM-Klassen aus der Base
     models = {cls.__tablename__: cls for cls in base_class.__subclasses__()}
@@ -259,3 +300,19 @@ if __name__ == "__main__":
     demo_queries(engine)
 
     describe_joins("person", Base)
+
+    with Session(engine) as session:
+        query = (
+            session.query(Person)
+            .options(
+                joinedload(Person.person_abteilungen)
+                .joinedload(PersonToAbteilung.abteilung)
+                .joinedload(Abteilung.leiter)
+                .joinedload(Person.contacts)  # Kontakte des Leiters
+            )
+            .filter(Person.first_name == "Anna")
+        )
+
+        results = query.filter(Person.first_name == "Anna").all()
+        for p in results:
+            print(p.id, p.first_name, p.last_name)
