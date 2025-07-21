@@ -1,5 +1,6 @@
 # app.py
 from flask import Flask, render_template, render_template_string, request, jsonify
+from typing import Any
 import verwaltung
 import os
 
@@ -22,12 +23,144 @@ join_views = {
         ],
         "primary_key": "id"
     },
-    # Weitere Views hier definieren:
-    # "andere_view": { ... }
+    "person_contact": {
+        "base_table": "person",
+        "base_alias": "p",
+        "joins": [
+            {"table": "person_contact", "alias": "pc", "type": "LEFT", "on": "p.id = pc.person_id"}
+        ],
+        "columns": [
+            "p.id AS id",
+            "p.first_name",
+            "p.last_name",
+            "pc.phone",
+            "pc.fax",
+            "pc.email",
+            "pc.comment AS contact_comment"
+        ],
+        "primary_key": "id"
+    },
+    "person_room": {
+        "base_table": "person",
+        "base_alias": "p",
+        "joins": [
+            {"table": "person_to_room", "alias": "ptr", "type": "LEFT", "on": "p.id = ptr.person_id"},
+            {"table": "room", "alias": "r", "type": "LEFT", "on": "ptr.room_id = r.id"},
+            {"table": "building", "alias": "b", "type": "LEFT", "on": "r.building_id = b.id"}
+        ],
+        "columns": [
+            "p.id AS id",
+            "p.first_name",
+            "p.last_name",
+            "r.name AS room_name",
+            "r.floor AS room_floor",
+            "b.name AS building_name",
+            "b.building_number",
+            "b.address"
+        ],
+        "primary_key": "id"
+    },
+    "person_professorship": {
+        "base_table": "person",
+        "base_alias": "p",
+        "joins": [
+            {"table": "person_to_professorship", "alias": "ptp", "type": "LEFT", "on": "p.id = ptp.person_id"},
+            {"table": "professorship", "alias": "pr", "type": "LEFT", "on": "ptp.professorship_id = pr.id"},
+            {"table": "kostenstelle", "alias": "k", "type": "LEFT", "on": "pr.kostenstelle_id = k.id"}
+        ],
+        "columns": [
+            "p.id AS id",
+            "p.first_name",
+            "p.last_name",
+            "pr.id AS professorship_id",
+            "pr.name AS professorship_name",
+            "k.id AS kostenstelle_id",
+            "k.name AS kostenstelle_name"
+        ],
+        "primary_key": "id"
+    },
+    "transponder_with_owner_and_rooms": {
+        "base_table": "transponder",
+        "base_alias": "t",
+        "joins": [
+            {"table": "person", "alias": "issuer", "type": "LEFT", "on": "t.issuer_id = issuer.id"},
+            {"table": "person", "alias": "owner", "type": "LEFT", "on": "t.owner_id = owner.id"},
+            {"table": "transponder_to_room", "alias": "ttr", "type": "LEFT", "on": "t.id = ttr.transponder_id"},
+            {"table": "room", "alias": "r", "type": "LEFT", "on": "ttr.room_id = r.id"}
+        ],
+        "columns": [
+            "t.id AS transponder_id",
+            "t.serial_number",
+            "t.got",
+            "t.return",
+            "t.comment",
+            "issuer.first_name AS issuer_first_name",
+            "issuer.last_name AS issuer_last_name",
+            "owner.first_name AS owner_first_name",
+            "owner.last_name AS owner_last_name",
+            "r.name AS room_name",
+            "r.floor AS room_floor"
+        ],
+        "primary_key": "transponder_id"
+    },
+    "inventory_detailed": {
+        "base_table": "inventory",
+        "base_alias": "i",
+        "joins": [
+            {"table": "person", "alias": "owner", "type": "LEFT", "on": "i.owner_id = owner.id"},
+            {"table": "person", "alias": "issuer", "type": "LEFT", "on": "i.issuer_id = issuer.id"},
+            {"table": "object", "alias": "o", "type": "LEFT", "on": "i.object_id = o.id"},
+            {"table": "object_category", "alias": "oc", "type": "LEFT", "on": "o.category_id = oc.id"},
+            {"table": "kostenstelle", "alias": "k", "type": "LEFT", "on": "i.kostenstelle_id = k.id"},
+            {"table": "room", "alias": "r", "type": "LEFT", "on": "i.raum_id = r.id"},
+            {"table": "building", "alias": "b", "type": "LEFT", "on": "r.building_id = b.id"},
+            {"table": "professorship", "alias": "pr", "type": "LEFT", "on": "i.professorship_id = pr.id"},
+            {"table": "abteilung", "alias": "a", "type": "LEFT", "on": "i.abteilung_id = a.id"}
+        ],
+        "columns": [
+            "i.id AS inventory_id",
+            "i.acquisition_date",
+            "i.got",
+            "i.return",
+            "i.serial_number",
+            "i.anlagennummer",
+            "i.comment",
+            "i.price",
+            "owner.first_name AS owner_first_name",
+            "owner.last_name AS owner_last_name",
+            "issuer.first_name AS issuer_first_name",
+            "issuer.last_name AS issuer_last_name",
+            "o.name AS object_name",
+            "oc.name AS object_category",
+            "k.name AS kostenstelle_name",
+            "r.name AS room_name",
+            "b.name AS building_name",
+            "pr.name AS professorship_name",
+            "a.name AS abteilungsname"
+        ],
+        "primary_key": "inventory_id"
+    },
+    "object_lager": {
+        "base_table": "object",
+        "base_alias": "o",
+        "joins": [
+            {"table": "object_to_lager", "alias": "otl", "type": "LEFT", "on": "o.id = otl.object_id"},
+            {"table": "lager", "alias": "l", "type": "LEFT", "on": "otl.lager_id = l.id"},
+            {"table": "room", "alias": "r", "type": "LEFT", "on": "l.raum_id = r.id"},
+            {"table": "building", "alias": "b", "type": "LEFT", "on": "r.building_id = b.id"},
+            {"table": "object_category", "alias": "oc", "type": "LEFT", "on": "o.category_id = oc.id"}
+        ],
+        "columns": [
+            "o.id AS object_id",
+            "o.name AS object_name",
+            "o.price",
+            "oc.name AS category_name",
+            "r.name AS room_name",
+            "b.name AS building_name"
+        ],
+        "primary_key": "object_id"
+    }
 }
-
-
-from typing import Any
 
 app = Flask(__name__)
 
@@ -185,8 +318,8 @@ def api_update_generic_view(view_name):
         return jsonify({"error": f"Primärschlüssel '{pk_field}' fehlt"}), 400
 
     pk_value = data[pk_field]
-    alias_to_table = extract_alias_table_mapping(view_def)
-    col_field_map = extract_column_field_mapping(view_def)
+    alias_to_table = verwaltung.extract_alias_table_mapping(view_def)
+    col_field_map = verwaltung.extract_column_field_mapping(view_def)
 
     update_fields = [
         k for k in data if k != pk_field and k in col_field_map
