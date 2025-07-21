@@ -78,7 +78,6 @@ def app_update_table(cursor, table, fields_values, pk_field, pk_value):
     except Exception as e:
         raise RuntimeError(f"Fehler in app_update_table_or_insert: {str(e)}")
 
-
 def parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value, alias_to_table):
     try:
         left, right = join_on.split("=")
@@ -95,80 +94,99 @@ def parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value, a
             return None, None, "Unbekannte Join-Bedingung (kein Alias passt)", 400
 
         join_col = join_side.split(".")[1]
+
+        if "." not in other_side:
+            return None, None, f"Join-Bedingung unvollständig: {other_side}", 400
+
         other_alias, other_col = other_side.split(".")
         other_table = alias_to_table.get(other_alias)
 
         if not other_table:
             return None, None, f"Alias '{other_alias}' ist keiner Tabelle zugeordnet", 400
 
-        # Sonderfall: Zugriff auf base_table mit id
-        if other_alias == alias_to_table.get("base_alias", ""):
+        base_alias = alias_to_table.get("base_alias", "")
+        if other_alias == base_alias:
             cursor.execute(f"SELECT {other_col} FROM {other_table} WHERE id = ?", (pk_value,))
         else:
-            # Versuch, Fremd-ID aus Join-Tabelle zu lesen
-            # Annahme: Join-Tabelle hat 1:n-Beziehung mit base_table → wir lesen mit base_id
             base_id_col = f"{base_table}_id"
             cursor.execute(f"SELECT {other_col} FROM {other_table} WHERE {base_id_col} = ?", (pk_value,))
 
         row = cursor.fetchone()
         if not row:
-            return None, None, f"Kein Wert in {other_table} für {other_col} gefunden", 404
+            # Kein Fehler mehr – Rückgabe mit None → handled später durch aufrufenden Code
+            return join_col, None, None, None
 
         return join_col, row[0], None, None
 
     except Exception as e:
         return None, None, f"Fehler bei Join-Bedingung: {str(e)}", 500
 
+
 def invert_dict(d):
     return {v: k for k, v in d.items()}
 
 def update_join_tables(cursor, view_def, updates_by_table, base_table, pk_value, alias_to_table):
-    for join in view_def.get("joins", []):
-        join_table = join["table"]
-        join_alias = join.get("alias")
-        join_on = join.get("on")
+    try:
+        for join in view_def.get("joins", []):
+            join_table = join["table"]
+            join_alias = join.get("alias")
+            join_on = join.get("on")
 
-        if join_table not in updates_by_table:
-            continue
+            if join_table not in updates_by_table:
+                continue
 
-        if not join_on:
-            raise RuntimeError("Join-Bedingung fehlt")
+            if not join_on:
+                return "Join-Bedingung fehlt", 400
 
-        filter_col, filter_val, error_response, status_code = parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value, alias_to_table)
-        if error_response:
-            raise RuntimeError(f"Fehler bei parse_join_on_condition: {error_response}")
+            result = parse_join_on_condition(join_on, join_alias, base_table, cursor, pk_value, alias_to_table)
+            if result is None or len(result) != 4:
+                return "Fehler: parse_join_on_condition gibt ungültige Werte zurück", 500
 
-        cursor.execute(f"SELECT id FROM {join_table} WHERE {filter_col} = ?", (filter_val,))
-        join_rows = cursor.fetchall()
+            filter_col, filter_val, error_response, status_code = result
+            if error_response:
+                return error_response, status_code
 
-        if not join_rows:
-            # Kein Datensatz vorhanden -> INSERT machen mit filter_col=filter_val plus update fields
-            fields = updates_by_table[join_table].copy()
-            # filter_col ist das Join-Kriterium, muss mit rein
-            fields[filter_col] = filter_val
-            all_fields = list(fields.keys())
-            all_values = list(fields.values())
-            placeholders = ", ".join(["?"] * len(all_fields))
-            sql_insert = f"INSERT INTO {join_table} ({', '.join(all_fields)}) VALUES ({placeholders})"
-            cursor.execute(sql_insert, all_values)
-            continue
+            try:
+                cursor.execute(f"SELECT id FROM {join_table} WHERE {filter_col} = ?", (filter_val,))
+                join_rows = cursor.fetchall()
+            except Exception as e:
+                return f"Fehler beim Lesen aus {join_table}: {str(e)}", 500
 
-        for join_row in join_rows:
-            join_id = join_row["id"]
-            set_clauses = []
-            params = []
-            for k, v in updates_by_table[join_table].items():
-                set_clauses.append(f"{k} = ?")
-                params.append(v)
-            params.append(join_id)
-            sql_update = f"UPDATE {join_table} SET {', '.join(set_clauses)} WHERE id = ?"
-            cursor.execute(sql_update, params)
-            if cursor.rowcount == 0:
-                # Update fehlgeschlagen, mach stattdessen Insert
+            if not join_rows:
+                # Kein Datensatz vorhanden -> INSERT
                 fields = updates_by_table[join_table].copy()
-                # Wenn id existiert, besser nicht neu einfügen, sondern Fehler werfen oder anders handeln
-                # Hier überspringen wir Insert, da id schon existiert
-                raise RuntimeError(f"Update in {join_table} mit id={join_id} fehlgeschlagen und Insert abgebrochen")
+                fields[filter_col] = filter_val
+                all_fields = list(fields.keys())
+                all_values = list(fields.values())
+                placeholders = ", ".join(["?"] * len(all_fields))
+                sql_insert = f"INSERT INTO {join_table} ({', '.join(all_fields)}) VALUES ({placeholders})"
+                try:
+                    cursor.execute(sql_insert, all_values)
+                except Exception as e:
+                    return f"Fehler beim INSERT in {join_table}: {str(e)}", 500
+                continue
+
+            for join_row in join_rows:
+                join_id = join_row["id"]
+                set_clauses = []
+                params = []
+                for k, v in updates_by_table[join_table].items():
+                    set_clauses.append(f"{k} = ?")
+                    params.append(v)
+                params.append(join_id)
+                sql_update = f"UPDATE {join_table} SET {', '.join(set_clauses)} WHERE id = ?"
+
+                try:
+                    cursor.execute(sql_update, params)
+                    if cursor.rowcount == 0:
+                        return f"Update in {join_table} mit id={join_id} fehlgeschlagen", 500
+                except Exception as e:
+                    return f"Fehler beim UPDATE in {join_table}: {str(e)}", 500
+
+        return None, None  # Erfolgreich
+
+    except Exception as e:
+        return f"Unerwarteter Fehler in update_join_tables: {str(e)}", 500
 
 def extract_alias_table_mapping(view_def):
     mapping = {view_def["base_alias"]: view_def["base_table"]}
