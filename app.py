@@ -158,7 +158,6 @@ join_views = {
             "ptr.person_id",
             "p.first_name",
             "p.last_name",
-            "ptr.room_id",
             "r.name AS room_name",
             "r.floor"
         ],
