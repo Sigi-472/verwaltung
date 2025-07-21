@@ -6,8 +6,6 @@ if __name__ == "__main__":
     engine = create_engine("sqlite:///mydatabase.db", echo=False)
     Base.metadata.create_all(engine)
 
-    describe_possible_joins("person", Base)
-
     with Session(engine) as session:
         query = session.query(Person).outerjoin(Person.contacts)  # Beispiel: `contacts` ist Beziehung zu PersonContact
         rows = query.all()
