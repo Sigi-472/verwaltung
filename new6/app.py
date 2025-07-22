@@ -4,6 +4,9 @@ from sqlalchemy.orm import sessionmaker
 from db_defs import Base
 from markupsafe import escape
 import html
+from sqlalchemy import Date, DateTime
+from sqlalchemy import Date, DateTime
+import datetime
 
 app = Flask(__name__)
 engine = create_engine("sqlite:///test.db")
@@ -86,7 +89,10 @@ def table_view(table_name):
     for row in rows:
         html_out.append('<tr>')
         for col in columns:
-            value = getattr(row, col.name)
+            attr_name = col.name
+            if attr_name == "return":
+                attr_name = "return_"  # oder wie du es im Model umbenannt hast
+            value = getattr(row, attr_name)
             html_out.append(f'<td>{get_input(col, value, row_id=row.id)}</td>')
         html_out.append('</tr>')
 
@@ -144,10 +150,20 @@ def add_entry(table_name):
                 continue
             col_type = getattr(cls, field).property.columns[0].type
 
-            if isinstance(col_type, int):
-                setattr(obj, field, int(val))
-            elif isinstance(col_type, float):
-                setattr(obj, field, float(val))
+            if val == "":
+                setattr(obj, field, None)
+            elif isinstance(col_type, Date):
+                setattr(obj, field, datetime.datetime.strptime(val, "%Y-%m-%d").date())
+            elif isinstance(col_type, DateTime):
+                setattr(obj, field, datetime.datetime.fromisoformat(val))
+            elif isinstance(col_type.python_type, type):
+                typ = col_type.python_type
+                if typ == int:
+                    setattr(obj, field, int(val))
+                elif typ == float:
+                    setattr(obj, field, float(val))
+                else:
+                    setattr(obj, field, val)
             else:
                 setattr(obj, field, val)
         session.add(obj)
@@ -156,7 +172,6 @@ def add_entry(table_name):
     except Exception as e:
         session.rollback()
         return jsonify(success=False, error=str(e))
-
 
 @app.route("/update/<table_name>", methods=["POST"])
 def update_entry(table_name):
@@ -175,14 +190,18 @@ def update_entry(table_name):
         row = session.query(cls).get(int(rowid))
         if not hasattr(cls, field):
             return jsonify(success=False, error=f"Unbekanntes Feld: {field}")
+
         col_type = getattr(cls, field).property.columns[0].type
 
-        # Typkonvertierung je nach SQLAlchemy Typklasse
-        if isinstance(col_type.python_type, type):
+        if value == "":
+            setattr(row, field, None)
+        elif isinstance(col_type, Date):
+            setattr(row, field, datetime.datetime.strptime(value, "%Y-%m-%d").date())
+        elif isinstance(col_type, DateTime):
+            setattr(row, field, datetime.datetime.fromisoformat(value))
+        elif isinstance(col_type.python_type, type):
             typ = col_type.python_type
-            if value == "":
-                setattr(row, field, None)
-            elif typ == int:
+            if typ == int:
                 setattr(row, field, int(value))
             elif typ == float:
                 setattr(row, field, float(value))
@@ -196,8 +215,6 @@ def update_entry(table_name):
     except Exception as e:
         session.rollback()
         return jsonify(success=False, error=str(e))
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)
