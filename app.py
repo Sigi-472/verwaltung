@@ -195,29 +195,7 @@ def generate_input_html(table_name, col, value, row_id, fk_options):
             # Nur bei row_id == 'new' das JS einmal pro Spalte rendern (nicht pro Zelle)
             if row_id in (None, 'new'):
                 html_input += ("""
-                    <script>
-                        $(function() {
-                            $(".cell-input").each(function() {
-                                var input = $(this);
-                                var data = input.data("autocomplete");
-                                if (data) {
-                                    input.autocomplete({
-                                        source: data,
-                                        minLength: 0,
-                                        delay: 0,
-                                        autoFocus: true,
-                                        select: function(event, ui) {
-                                            input.val(ui.item.label);
-                                            input.attr("data-id", ui.item.value);
-                                            return false;
-                                        }
-                                    }).focus(function() {
-                                        $(this).autocomplete("search", "");
-                                    });
-                                }
-                            });
-                        });
-                    </script>
+
                 """)
 
             return html_input
