@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, url_for, render_template_string, jsonify
+from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 from db_defs import Base
@@ -35,6 +35,10 @@ def index():
     links = [f'<li><a href="{url_for("table_view", table_name=t)}">{t.capitalize()}</a></li>' for t in tables]
     return f"<h1>Datenbank Tabellen</h1><ul>{''.join(links)}</ul>"
 
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(app.static_folder, 'favicon.ico')
 
 @app.route("/table/<table_name>")
 def table_view(table_name):
