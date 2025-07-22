@@ -163,7 +163,6 @@ def generate_input_html(table_name, col, value, row_id, fk_options):
     """
     try:
         input_name = f"{table_name}_{row_id or 'new'}_{col.name}"
-        val = "" if value is None else html.escape(str(value))
         col_type_str = str(col.type).upper()
 
         if col.name in fk_options:
@@ -175,35 +174,56 @@ def generate_input_html(table_name, col, value, row_id, fk_options):
                 }
                 for o in fk_options[col.name]
             ]
-            # JSON-String für das data-autocomplete Attribut
+
+            # Aktuelles Label zum Wert finden (für visible input value)
+            display_val = ""
+            if value is not None:
+                for opt_value, opt_label in fk_options[col.name]:
+                    if str(opt_value) == str(value):
+                        display_val = opt_label
+                        break
+
             data_json = html.escape(str(datalist).replace("'", '"'))
 
             html_input = (
-                f'<input type="text" name="{input_name}" value="{val}" '
+                f'<input type="text" name="{input_name}" value="{html.escape(display_val)}" '
                 f'class="cell-input autocomplete-{col.name}" '
-                f'data-autocomplete=\'{data_json}\'>\n'
+                f'data-id="{html.escape(str(value)) if value is not None else ""}" '
+                f'data-autocomplete=\'{data_json}\'>' + "\n"
             )
 
             # Nur bei row_id == 'new' das JS einmal pro Spalte rendern (nicht pro Zelle)
             if row_id in (None, 'new'):
-                html_input += (
-                    f"<script>\n"
-                    f"$(function() {{\n"
-                    f"  var data = $('.autocomplete-{col.name}').data('autocomplete');\n"
-                    f"  $('.autocomplete-{col.name}').autocomplete({{\n"
-                    f"    source: data,\n"
-                    f"    minLength: 0,\n"
-                    f"    delay: 0,\n"
-                    f"    autoFocus: true\n"
-                    f"  }});\n"
-                    f"  $('.autocomplete-{col.name}').focus(function() {{ $(this).autocomplete('search', ''); }});\n"
-                    f"}});\n"
-                    f"</script>\n"
-                )
+                html_input += ("""
+                    <script>
+                        $(function() {
+                            $(".cell-input").each(function() {
+                                var input = $(this);
+                                var data = input.data("autocomplete");
+                                if (data) {
+                                    input.autocomplete({
+                                        source: data,
+                                        minLength: 0,
+                                        delay: 0,
+                                        autoFocus: true,
+                                        select: function(event, ui) {
+                                            input.val(ui.item.label);
+                                            input.attr("data-id", ui.item.value);
+                                            return false;
+                                        }
+                                    }).focus(function() {
+                                        $(this).autocomplete("search", "");
+                                    });
+                                }
+                            });
+                        });
+                    </script>
+                """)
 
             return html_input
 
         # Standard-Typen
+        val = "" if value is None else html.escape(str(value))
         if "INTEGER" in col_type_str:
             return f'<input type="number" name="{input_name}" value="{val}" class="cell-input">'
         if "FLOAT" in col_type_str or "NUMERIC" in col_type_str or "DECIMAL" in col_type_str:
