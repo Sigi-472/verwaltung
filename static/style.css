@@ -203,10 +203,11 @@ button.delete-entry:active {
 	background-color: #992d22; /* noch dunkler beim Klicken */
 }
 
-        select, input[type="checkbox"] {
-            cursor: pointer;
-        }
-        button {
-            padding: 4px 10px;
-            cursor: pointer;
-        }
+select, input[type="checkbox"] {
+    cursor: pointer;
+}
+
+button {
+    padding: 4px 10px;
+    cursor: pointer;
+}
