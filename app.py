@@ -86,50 +86,12 @@ def column_label(table, col):
     return COLUMN_LABELS.get(f"{table}.{col}", col.replace("_id", "").replace("_", " ").capitalize())
 
 
+from flask import render_template
+
 @app.route("/")
 def index():
     tables = [cls.__tablename__ for cls in Base.__subclasses__()]
-    links = [f'<li><a href="{url_for("table_view", table_name=t)}">{t.capitalize()}</a></li>' for t in tables]
-    return f"""<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <title>Datenbank Tabellen</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 2em;
-            background: #f9f9f9;
-            color: #333;
-        }}
-        h1 {{
-            margin-bottom: 1em;
-        }}
-        ul {{
-            list-style: none;
-            padding-left: 0;
-        }}
-        li {{
-            margin-bottom: 0.5em;
-        }}
-        a {{
-            text-decoration: none;
-            color: #007bff;
-            font-weight: 600;
-        }}
-        a:hover {{
-            text-decoration: underline;
-        }}
-    </style>
-</head>
-<body>
-    <h1>Tabellen</h1>
-    <ul>
-        {''.join(links)}
-    </ul>
-</body>
-</html>"""
-
+    return render_template("index.html", tables=tables)
 
 @app.route('/favicon.ico')
 def favicon():

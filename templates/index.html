@@ -1,0 +1,42 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Datenbank Tabellen</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 2em;
+            background: #f9f9f9;
+            color: #333;
+        }
+        h1 {
+            margin-bottom: 1em;
+        }
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        li {
+            margin-bottom: 0.5em;
+        }
+        a {
+            text-decoration: none;
+            color: #007bff;
+            font-weight: 600;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tabellen</h1>
+    <ul>
+        {% for table in tables %}
+            <li><a href="{{ url_for('table_view', table_name=table) }}">{{ table.capitalize() }}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
