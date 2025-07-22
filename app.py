@@ -40,7 +40,7 @@ def restart_with_venv():
         sys.exit(1)
 
 try:
-    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker
     from db_defs import Base
@@ -83,8 +83,6 @@ FK_DISPLAY_COLUMNS = {
 def column_label(table, col):
     return COLUMN_LABELS.get(f"{table}.{col}", col.replace("_id", "").replace("_", " ").capitalize())
 
-from flask import render_template
-
 @app.route("/")
 def index():
     tables = [cls.__tablename__ for cls in Base.__subclasses__()]
@@ -94,69 +92,136 @@ def index():
 def favicon():
     return send_from_directory(app.static_folder, 'favicon.ico')
 
-@app.route("/table/<table_name>")
-def table_view(table_name):
-    session = Session()
-    cls = next((c for c in Base.__subclasses__() if c.__tablename__ == table_name), None)
-    if not cls:
-        return "Tabelle nicht gefunden", 404
+def get_model_class_by_tablename(table_name):
+    try:
+        return next((c for c in Base.__subclasses__() if c.__tablename__ == table_name), None)
+    except Exception as e:
+        app.logger.error(f"Fehler beim Abrufen der Modelklasse für Tabelle {table_name}: {e}")
+        return None
 
-    inspector = inspect(cls)
-    columns = [c for c in inspector.columns if not c.primary_key and c.name not in ("created_at", "updated_at")]
-    fk_columns = {c.name: list(c.foreign_keys)[0] for c in columns if c.foreign_keys}
+def get_relevant_columns(cls):
+    try:
+        inspector = inspect(cls)
+        return [c for c in inspector.columns if not c.primary_key and c.name not in ("created_at", "updated_at")]
+    except Exception as e:
+        app.logger.error(f"Fehler beim Inspektieren der Spalten für Klasse {cls}: {e}")
+        return []
 
+def get_foreign_key_columns(columns):
+    try:
+        return {c.name: list(c.foreign_keys)[0] for c in columns if c.foreign_keys}
+    except Exception as e:
+        app.logger.error(f"Fehler beim Extrahieren der Fremdschlüssel aus Spalten: {e}")
+        return {}
+
+def get_fk_options(session, fk_columns):
     fk_options = {}
-    for col_name, fk in fk_columns.items():
-        ref_table = fk.column.table.name
-        ref_cls = next((c for c in Base.__subclasses__() if c.__tablename__ == ref_table), None)
-        if ref_cls:
-            display_col = FK_DISPLAY_COLUMNS.get(ref_table, "name")
-            fk_options[col_name] = [
-                (getattr(r, fk.column.name), f"{getattr(r, display_col, '???')} ({getattr(r, fk.column.name)})")
-                for r in session.query(ref_cls).all()
-            ]
+    try:
+        for col_name, fk in fk_columns.items():
+            ref_table = fk.column.table.name
+            ref_cls = get_model_class_by_tablename(ref_table)
+            if ref_cls:
+                display_col = FK_DISPLAY_COLUMNS.get(ref_table, "name")
+                records = session.query(ref_cls).all()
+                options = []
+                for r in records:
+                    key = getattr(r, fk.column.name, None)
+                    label = f"{getattr(r, display_col, '???')} ({key})"
+                    options.append((key, label))
+                fk_options[col_name] = options
+    except Exception as e:
+        app.logger.error(f"Fehler beim Abrufen der FK-Optionen: {e}")
+    return fk_options
+
+def generate_input_field(col, value=None, row_id=None, fk_options=None, table_name=""):
+    try:
+        input_name = f"{table_name}_{row_id or 'new'}_{col.name}"
+        val = "" if value is None else html.escape(str(value))
+
+        if fk_options and col.name in fk_options:
+            options_html = ""
+            for opt_value, opt_label in fk_options[col.name]:
+                selected = "selected" if str(opt_value) == val else ""
+                options_html += f'<option value="{html.escape(str(opt_value))}" {selected}>{html.escape(opt_label)}</option>'
+            return f'<select name="{html.escape(input_name)}" class="cell-input">{options_html}</select>'
+
+        col_type_str = str(col.type).upper()
+        if "INTEGER" in col_type_str:
+            return f'<input type="number" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+        if "FLOAT" in col_type_str or "DECIMAL" in col_type_str or "NUMERIC" in col_type_str:
+            return f'<input type="number" step="any" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+        if "TEXT" in col_type_str or "VARCHAR" in col_type_str or "CHAR" in col_type_str:
+            return f'<input type="text" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+        if "DATE" in col_type_str:
+            return f'<input type="date" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+        # Fallback Input
+        return f'<input type="text" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+    except Exception as e:
+        app.logger.error(f"Fehler beim Generieren des Input-Feldes für Spalte {col.name}: {e}")
+        # Rückgabe eines leeren Inputs bei Fehlern, damit Seite nicht komplett bricht
+        return f'<input type="text" name="{html.escape(input_name)}" value="" class="cell-input">'
+
+def get_column_label(table_name, column_name):
+    # Hier deine Logik für die Label-Erzeugung
+    # Einfacher Platzhalter:
+    try:
+        return column_label(table_name, column_name)
+    except Exception as e:
+        app.logger.error(f"Fehler beim Abrufen des Labels für {table_name}.{column_name}: {e}")
+        return column_name
+
+def prepare_table_data(session, cls, table_name):
+    columns = get_relevant_columns(cls)
+    fk_columns = get_foreign_key_columns(columns)
+    fk_options = get_fk_options(session, fk_columns)
 
     rows = session.query(cls).all()
 
-    def get_input(col, value=None, row_id=None):
-        input_name = f"{table_name}_{row_id or 'new'}_{col.name}"
-        val = "" if value is None else html.escape(str(value))
-        if col.name in fk_options:
-            opts = "".join(
-                f'<option value="{o[0]}" {"selected" if str(o[0])==val else ""}>{html.escape(o[1])}</option>'
-                for o in fk_options[col.name]
-            )
-            return f'<select name="{input_name}" class="cell-input">{opts}</select>'
-        if str(col.type).startswith("INTEGER"):
-            return f'<input type="number" name="{input_name}" value="{val}" class="cell-input">'
-        if str(col.type).startswith("FLOAT"):
-            return f'<input type="number" step="any" name="{input_name}" value="{val}" class="cell-input">'
-        if str(col.type).startswith("TEXT") or str(col.type).startswith("VARCHAR"):
-            return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
-        if "DATE" in str(col.type).upper():
-            return f'<input type="date" name="{input_name}" value="{val}" class="cell-input">'
-        return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
-
-    # Daten vorbereiten für Template
-    column_labels = [column_label(table_name, col.name) for col in columns]
     row_html = []
     for row in rows:
         row_inputs = []
         for col in columns:
-            value = getattr(row, col.name if col.name != "return" else "return_")
-            label = column_label(table_name, col.name)
-            row_inputs.append((get_input(col, value, row_id=row.id), label))
+            # Spezialfall "return" umbenennen, falls nötig
+            col_name = col.name
+            if col_name == "return":
+                col_name = "return_"
+            try:
+                value = getattr(row, col_name)
+            except AttributeError:
+                value = None
+            label = get_column_label(table_name, col.name)
+            input_html = generate_input_field(col, value, row_id=getattr(row, "id", None), fk_options=fk_options, table_name=table_name)
+            row_inputs.append((input_html, label))
         row_html.append(row_inputs)
 
-    new_entry_inputs = [
-        (get_input(col), column_label(table_name, col.name)) for col in columns
-    ]
+    new_entry_inputs = []
+    for col in columns:
+        input_html = generate_input_field(col, fk_options=fk_options, table_name=table_name)
+        label = get_column_label(table_name, col.name)
+        new_entry_inputs.append((input_html, label))
 
-    # CSS und JS separat halten für bessere Übersichtlichkeit
-    with open("static/table_styles.css") as f:
-        style_css = f.read()
-    with open("static/table_scripts.js") as f:
-        javascript_code = f.read().replace("{{ table_name }}", table_name)
+    column_labels = [get_column_label(table_name, col.name) for col in columns]
+
+    return column_labels, row_html, new_entry_inputs
+
+def load_static_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        app.logger.error(f"Fehler beim Laden der Datei {path}: {e}")
+        return ""
+
+@app.route("/table/<table_name>")
+def table_view(table_name):
+    session = Session()
+    cls = get_model_class_by_tablename(table_name)
+    if cls is None:
+        abort(404, description="Tabelle nicht gefunden")
+
+    column_labels, row_html, new_entry_inputs = prepare_table_data(session, cls, table_name)
+    style_css = load_static_file("static/table_styles.css")
+    javascript_code = load_static_file("static/table_scripts.js").replace("{{ table_name }}", table_name)
 
     return render_template(
         "table_view.html",
@@ -165,7 +230,7 @@ def table_view(table_name):
         row_html=row_html,
         new_entry_inputs=new_entry_inputs,
         style_css=style_css,
-        javascript_code=javascript_code
+        javascript_code=javascript_code,
     )
 
 @app.route("/add/<table_name>", methods=["POST"])
