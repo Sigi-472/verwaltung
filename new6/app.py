@@ -5,7 +5,6 @@ from db_defs import Base
 from markupsafe import escape
 import html
 from sqlalchemy import Date, DateTime
-from sqlalchemy import Date, DateTime
 import datetime
 
 app = Flask(__name__)
@@ -33,12 +32,51 @@ def column_label(table, col):
 def index():
     tables = [cls.__tablename__ for cls in Base.__subclasses__()]
     links = [f'<li><a href="{url_for("table_view", table_name=t)}">{t.capitalize()}</a></li>' for t in tables]
-    return f"<h1>Datenbank Tabellen</h1><ul>{''.join(links)}</ul>"
+    return f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Datenbank Tabellen</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 2em;
+            background: #f9f9f9;
+            color: #333;
+        }}
+        h1 {{
+            margin-bottom: 1em;
+        }}
+        ul {{
+            list-style: none;
+            padding-left: 0;
+        }}
+        li {{
+            margin-bottom: 0.5em;
+        }}
+        a {{
+            text-decoration: none;
+            color: #007bff;
+            font-weight: 600;
+        }}
+        a:hover {{
+            text-decoration: underline;
+        }}
+    </style>
+</head>
+<body>
+    <h1>Datenbank Tabellen</h1>
+    <ul>
+        {''.join(links)}
+    </ul>
+</body>
+</html>"""
 
 
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(app.static_folder, 'favicon.ico')
+
 
 @app.route("/table/<table_name>")
 def table_view(table_name):
@@ -83,12 +121,149 @@ def table_view(table_name):
             return f'<input type="date" name="{input_name}" value="{val}" class="cell-input">'
         return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
 
-    html_out = [f'<h2>{table_name.capitalize()}</h2><a href="/">← zurück</a>']
-    html_out.append('<table class="edit-table"><thead><tr>')
+    html_out = [f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>{table_name.capitalize()} - Datenbank Editor</title>
+
+<!-- Toastr CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+
+<style>
+    body {{
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 2em;
+        background: #f4f7fa;
+        color: #2c3e50;
+    }}
+    h2 {{
+        margin-bottom: 0.5em;
+        font-weight: 700;
+        color: #34495e;
+    }}
+    a {{
+        text-decoration: none;
+        color: #2980b9;
+        font-weight: 600;
+    }}
+    a:hover {{
+        text-decoration: underline;
+    }}
+
+    table.edit-table {{
+        border-collapse: collapse;
+        width: 100%;
+        margin-bottom: 2em;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        background: white;
+        border-radius: 6px;
+        overflow: hidden;
+    }}
+    thead tr {{
+        background-color: #2980b9;
+        color: white;
+        text-align: left;
+        font-weight: 600;
+        user-select: none;
+    }}
+    th, td {{
+        padding: 10px 15px;
+        border-bottom: 1px solid #ddd;
+        vertical-align: middle;
+    }}
+    tbody tr:hover:not(.new-entry) {{
+        background-color: #ecf0f1;
+    }}
+    input.cell-input, select.cell-input {{
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid #bdc3c7;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        transition: border-color 0.2s ease-in-out;
+    }}
+    input.cell-input:focus, select.cell-input:focus {{
+        border-color: #2980b9;
+        outline: none;
+        box-shadow: 0 0 6px #2980b9aa;
+    }}
+
+    .new-entry {{
+        background-color: #dff0d8;
+        font-weight: 600;
+    }}
+    .new-entry td {{
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }}
+
+    button.save-new {{
+        background-color: #27ae60;
+        border: none;
+        color: white;
+        padding: 8px 14px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 1rem;
+        transition: background-color 0.3s ease;
+        width: 100%;
+    }}
+    button.save-new:hover {{
+        background-color: #219150;
+    }}
+
+    @media (max-width: 768px) {{
+        body {{
+            margin: 1em;
+        }}
+        table.edit-table, thead tr, tbody tr, th, td {{
+            display: block;
+            width: 100%;
+        }}
+        thead tr {{
+            display: none;
+        }}
+        tbody tr {{
+            margin-bottom: 1.5em;
+            border-radius: 8px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+            background: white;
+            padding: 1em;
+        }}
+        tbody tr td {{
+            border: none;
+            padding: 8px 4px;
+            position: relative;
+            padding-left: 50%;
+        }}
+        tbody tr td::before {{
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            width: 45%;
+            white-space: nowrap;
+            font-weight: 600;
+            color: #7f8c8d;
+            content: attr(data-label);
+        }}
+        button.save-new {{
+            width: 100%;
+        }}
+    }}
+</style>
+</head>
+<body>
+<h2>{table_name.capitalize()}</h2>
+<a href="/">← zurück</a>
+<table class="edit-table">
+<thead><tr>"""]
+
     for col in columns:
         label = column_label(table_name, col.name)
         html_out.append(f'<th>{escape(label)}</th>')
-    html_out.append('</tr></thead><tbody>')
+    html_out.append('<th>Aktion</th></tr></thead><tbody>')
 
     for row in rows:
         html_out.append('<tr>')
@@ -97,46 +272,77 @@ def table_view(table_name):
             if attr_name == "return":
                 attr_name = "return_"  # oder wie du es im Model umbenannt hast
             value = getattr(row, attr_name)
-            html_out.append(f'<td>{get_input(col, value, row_id=row.id)}</td>')
-        html_out.append('</tr>')
+            # Für responsive mobile Labels
+            label = column_label(table_name, col.name)
+            html_out.append(f'<td data-label="{escape(label)}">{get_input(col, value, row_id=row.id)}</td>')
+        html_out.append('<td></td></tr>')
 
     html_out.append('<tr class="new-entry">')
     for col in columns:
-        html_out.append(f'<td>{get_input(col)}</td>')
-    html_out.append('<td><button class="save-new">Speichern</button></td></tr>')
+        label = column_label(table_name, col.name)
+        html_out.append(f'<td data-label="{escape(label)}">{get_input(col)}</td>')
+    html_out.append('<td><button class="save-new" title="Neuen Eintrag speichern">Speichern</button></td></tr>')
 
     html_out.append('</tbody></table>')
 
+    # Javascript + Toastr + jQuery
     html_out.append("""
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script>
-    $(".cell-input").filter(function() {
-        return $(this).closest(".new-entry").length === 0;
-    }).on("change", function() {
-        const name = $(this).attr("name");
-        const value = $(this).val();
-        $.post("/update/""" + table_name + """", { name, value }, function(resp) {
-            if (!resp.success) alert("Fehler: " + resp.error);
-        }, "json");
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script>
+toastr.options = {
+  "closeButton": true,
+  "debug": false,
+  "newestOnTop": true,
+  "progressBar": true,
+  "positionClass": "toast-top-right",
+  "preventDuplicates": true,
+  "showDuration": "300",
+  "hideDuration": "1000",
+  "timeOut": "3500",
+  "extendedTimeOut": "1000",
+  "showEasing": "swing",
+  "hideEasing": "linear",
+  "showMethod": "fadeIn",
+  "hideMethod": "fadeOut"
+};
+
+$(".cell-input").filter(function() {
+    return $(this).closest(".new-entry").length === 0;
+}).on("change", function() {
+    const name = $(this).attr("name");
+    const value = $(this).val();
+    $.post("/update/""" + table_name + """", { name, value }, function(resp) {
+        if (!resp.success) {
+            toastr.error("Fehler beim Updaten: " + resp.error);
+        } else {
+            toastr.success("Eintrag geupdatet");
+        }
+    }, "json").fail(function() {
+        toastr.error("Netzwerkfehler beim Updaten");
     });
-    $(".save-new").on("click", function() {
-        const data = {};
-        $(".new-entry input, .new-entry select").each(function() {
-            data[$(this).attr("name")] = $(this).val();
-        });
-        $.post("/add/""" + table_name + """", data, function(resp) {
-            if (!resp.success) alert("Fehler: " + resp.error);
-            else location.reload();
-        }, "json");
+});
+$(".save-new").on("click", function() {
+    const data = {};
+    $(".new-entry input, .new-entry select").each(function() {
+        data[$(this).attr("name")] = $(this).val();
     });
-    </script>
-    <style>
-    table { border-collapse: collapse; width: 100%; margin-bottom: 2em; }
-    th, td { border: 1px solid #ccc; padding: 4px; }
-    input, select { width: 100%; }
-    .new-entry { background: #eef; }
-    </style>
-    """)
+    $.post("/add/""" + table_name + """", data, function(resp) {
+        if (!resp.success) {
+            toastr.error("Fehler beim Speichern: " + resp.error);
+        } else {
+            toastr.success("Eintrag gespeichert");
+            location.reload();
+        }
+    }, "json").fail(function() {
+        toastr.error("Netzwerkfehler beim Speichern");
+    });
+});
+</script>
+</body>
+</html>
+""")
+
     return render_template_string("\n".join(html_out))
 
 
@@ -160,14 +366,6 @@ def add_entry(table_name):
                 setattr(obj, field, datetime.datetime.strptime(val, "%Y-%m-%d").date())
             elif isinstance(col_type, DateTime):
                 setattr(obj, field, datetime.datetime.fromisoformat(val))
-            elif isinstance(col_type.python_type, type):
-                typ = col_type.python_type
-                if typ == int:
-                    setattr(obj, field, int(val))
-                elif typ == float:
-                    setattr(obj, field, float(val))
-                else:
-                    setattr(obj, field, val)
             else:
                 setattr(obj, field, val)
         session.add(obj)
@@ -177,6 +375,7 @@ def add_entry(table_name):
         session.rollback()
         return jsonify(success=False, error=str(e))
 
+
 @app.route("/update/<table_name>", methods=["POST"])
 def update_entry(table_name):
     session = Session()
@@ -184,41 +383,35 @@ def update_entry(table_name):
     if not cls:
         return jsonify(success=False, error="Tabelle nicht gefunden")
     try:
-        name = request.form["name"]
-        value = request.form["value"]
-        _, rowid, field = name.split("_", 2)
-
-        if rowid == "new":
-            return jsonify(success=False, error="Kann neue Zeile nicht per Update speichern")
-
-        row = session.query(cls).get(int(rowid))
-        if not hasattr(cls, field):
-            return jsonify(success=False, error=f"Unbekanntes Feld: {field}")
+        name = request.form.get("name")
+        value = request.form.get("value")
+        prefix = f"{table_name}_"
+        if not name.startswith(prefix):
+            return jsonify(success=False, error="Ungültiger Feldname")
+        parts = name[len(prefix):].split("_", 1)
+        if len(parts) != 2:
+            return jsonify(success=False, error="Ungültiger Feldname")
+        row_id_str, field = parts
+        row_id = int(row_id_str)
+        obj = session.query(cls).get(row_id)
+        if not obj:
+            return jsonify(success=False, error="Datensatz nicht gefunden")
 
         col_type = getattr(cls, field).property.columns[0].type
-
         if value == "":
-            setattr(row, field, None)
+            setattr(obj, field, None)
         elif isinstance(col_type, Date):
-            setattr(row, field, datetime.datetime.strptime(value, "%Y-%m-%d").date())
+            setattr(obj, field, datetime.datetime.strptime(value, "%Y-%m-%d").date())
         elif isinstance(col_type, DateTime):
-            setattr(row, field, datetime.datetime.fromisoformat(value))
-        elif isinstance(col_type.python_type, type):
-            typ = col_type.python_type
-            if typ == int:
-                setattr(row, field, int(value))
-            elif typ == float:
-                setattr(row, field, float(value))
-            else:
-                setattr(row, field, value)
+            setattr(obj, field, datetime.datetime.fromisoformat(value))
         else:
-            setattr(row, field, value)
-
+            setattr(obj, field, value)
         session.commit()
         return jsonify(success=True)
     except Exception as e:
         session.rollback()
         return jsonify(success=False, error=str(e))
 
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
