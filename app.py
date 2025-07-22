@@ -69,7 +69,6 @@ engine = create_engine("sqlite:///database.db")
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 
-# Deine Konfiguration:
 COLUMN_LABELS = {
     "abteilung.abteilungsleiter_id": "Abteilungsleiter",
     "person.first_name": "Vorname",
