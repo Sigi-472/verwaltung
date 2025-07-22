@@ -76,8 +76,7 @@ COLUMN_LABELS = {
 }
 
 FK_DISPLAY_COLUMNS = {
-    "person": "first_name",
-    "person": "last_name",
+    "person": ["first_name", "last_name"],
 }
 
 def column_label(table, col):
@@ -121,12 +120,25 @@ def get_fk_options(session, fk_columns):
             ref_table = fk.column.table.name
             ref_cls = get_model_class_by_tablename(ref_table)
             if ref_cls:
-                display_col = FK_DISPLAY_COLUMNS.get(ref_table, "name")
+                display_cols = FK_DISPLAY_COLUMNS.get(ref_table, "name")
                 records = session.query(ref_cls).all()
                 options = []
                 for r in records:
+                    # key: Wert des FK (z.B. id)
                     key = getattr(r, fk.column.name, None)
-                    label = f"{getattr(r, display_col, '???')} ({key})"
+                    # label: zusammengesetzter Name
+                    if isinstance(display_cols, list):
+                        # Alle Spaltenwerte auslesen und verbinden
+                        parts = []
+                        for col in display_cols:
+                            val = getattr(r, col, None)
+                            if val is not None:
+                                parts.append(str(val))
+                        label_text = " ".join(parts) if parts else "???"
+                    else:
+                        # Nur ein einzelner Spaltenname als String
+                        label_text = getattr(r, display_cols, "???")
+                    label = f"{label_text} ({key})"
                     options.append((key, label))
                 fk_options[col_name] = options
     except Exception as e:
