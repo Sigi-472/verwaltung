@@ -689,7 +689,7 @@ def wizard_person():
     return render_template("person_wizard.html", success=success, error=error)
 
 @app.route("/map-editor")
-def index():
+def map_editor():
     return render_template("map_editor.html")
 
 if __name__ == "__main__":
