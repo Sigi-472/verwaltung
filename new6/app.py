@@ -100,7 +100,9 @@ def table_view(table_name):
     html_out.append("""
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
-    $(".cell-input").on("change", function() {
+    $(".cell-input").filter(function() {
+        return $(this).closest(".new-entry").length === 0;
+    }).on("change", function() {
         const name = $(this).attr("name");
         const value = $(this).val();
         $.post("/update/""" + table_name + """", { name, value }, function(resp) {
@@ -166,20 +168,35 @@ def update_entry(table_name):
         name = request.form["name"]
         value = request.form["value"]
         _, rowid, field = name.split("_", 2)
+
+        if rowid == "new":
+            return jsonify(success=False, error="Kann neue Zeile nicht per Update speichern")
+
         row = session.query(cls).get(int(rowid))
+        if not hasattr(cls, field):
+            return jsonify(success=False, error=f"Unbekanntes Feld: {field}")
         col_type = getattr(cls, field).property.columns[0].type
 
-        if isinstance(col_type, int):
-            setattr(row, field, int(value))
-        elif isinstance(col_type, float):
-            setattr(row, field, float(value))
+        # Typkonvertierung je nach SQLAlchemy Typklasse
+        if isinstance(col_type.python_type, type):
+            typ = col_type.python_type
+            if value == "":
+                setattr(row, field, None)
+            elif typ == int:
+                setattr(row, field, int(value))
+            elif typ == float:
+                setattr(row, field, float(value))
+            else:
+                setattr(row, field, value)
         else:
             setattr(row, field, value)
+
         session.commit()
         return jsonify(success=True)
     except Exception as e:
         session.rollback()
         return jsonify(success=False, error=str(e))
+
 
 
 if __name__ == "__main__":
