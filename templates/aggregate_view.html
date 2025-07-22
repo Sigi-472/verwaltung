@@ -10,30 +10,23 @@
             margin: 0;
             padding: 20px;
         }
-
         h1 {
             margin-top: 0;
         }
-
-        /* einfache Tabelle ohne Abhängigkeit von externem CSS */
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 16px;
         }
-
         th, td {
             border: 1px solid #cccccc;
             padding: 6px 8px;
             vertical-align: top;
             text-align: left;
         }
-
         th {
             background: #f2f2f2;
         }
-
-        /* Filter‑Box */
         .filter-box {
             margin: 16px 0;
             padding: 12px;
@@ -41,26 +34,24 @@
             border: 1px solid #ccd5ff;
             border-radius: 4px;
         }
-
         .filter-box form {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             align-items: center;
         }
-
         .filter-box label {
             display: flex;
             align-items: center;
             gap: 4px;
         }
-
+        select, input[type="checkbox"] {
+            cursor: pointer;
+        }
         button {
             padding: 4px 10px;
             cursor: pointer;
         }
-
-        /* Responsive Tabelle – bei schmalen Bildschirmen horizontales Scrollen erlauben */
         .table-wrapper {
             overflow-x: auto;
         }
@@ -68,21 +59,34 @@
 </head>
 <body>
     <h1>{{ title }}</h1>
-    <a href="/">← zurück</a>
+    <a href="/aggregate/">← zurück</a>
 
     <div class="filter-box">
-        <form method="get" action="{{ url_for('aggregate_transponder_view') }}">
+        <form method="get" action="{{ url_for_view }}">
             <label>
-                <input
-                    type="checkbox"
-                    name="unreturned"
-                    value="1"
-                    {% if filters["Nur nicht zurückgegebene anzeigen"] %}checked{% endif %}
-                >
-                Nur&nbsp;nicht&nbsp;zurückgegebene&nbsp;Transponder&nbsp;anzeigen
+                <input type="checkbox" name="unreturned" value="1"
+                    {% if filters.unreturned %}checked{% endif %}>
+                Nur nicht zurückgegebene Einträge anzeigen
             </label>
-            <button type="submit">Filter&nbsp;anwenden</button>
-            <a href="{{ url_for('aggregate_transponder_view') }}">Alle&nbsp;anzeigen</a>
+
+            <label for="owner-select">Ausgegeben an:</label>
+            <select name="owner" id="owner-select">
+                <option value="">Alle</option>
+                {% for person in people %}
+                    <option value="{{ person.id }}" {% if filters.owner == person.id %}selected{% endif %}>{{ person.name }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="issuer-select">Ausgegeben durch:</label>
+            <select name="issuer" id="issuer-select">
+                <option value="">Alle</option>
+                {% for person in people %}
+                    <option value="{{ person.id }}" {% if filters.issuer == person.id %}selected{% endif %}>{{ person.name }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Filter anwenden</button>
+            <a href="{{ url_for_view }}">Alle anzeigen</a>
         </form>
     </div>
 
@@ -92,7 +96,7 @@
             <thead>
                 <tr>
                     {% for col in column_labels %}
-                    <th>{{ col }}</th>
+                        <th>{{ col }}</th>
                     {% endfor %}
                 </tr>
             </thead>
@@ -100,7 +104,7 @@
                 {% for row in row_data %}
                 <tr>
                     {% for cell in row %}
-                    <td>{{ cell }}</td>
+                        <td>{{ cell }}</td>
                     {% endfor %}
                 </tr>
                 {% endfor %}

@@ -408,15 +408,42 @@ def delete_entry(table_name):
 def aggregate_index():
     return render_template("aggregate_index.html")  # Optional – nur als Startseite für Aggregates
 
+
 @app.route("/aggregate/transponder")
 def aggregate_transponder_view():
     session = Session()
+
+    # Filter aus Query-Params
     show_only_unreturned = request.args.get("unreturned") == "1"
+    owner_filter = request.args.get("owner", "").strip()
+    issuer_filter = request.args.get("issuer", "").strip()
 
     try:
-        query = session.query(Transponder).join(Transponder.owner).outerjoin(Transponder.room_links).outerjoin(TransponderToRoom.room).outerjoin(Room.building)
+        query = session.query(Transponder) \
+            .options(
+                joinedload(Transponder.owner),
+                joinedload(Transponder.issuer),
+                joinedload(Transponder.room_links).joinedload(TransponderToRoom.room).joinedload(Room.building)
+            )
+
+        # Filter nur nicht zurückgegebene
         if show_only_unreturned:
             query = query.filter(Transponder.return_date.is_(None))
+
+        # Filter für owner (besitzer)
+        if owner_filter:
+            # Hier gehen wir davon aus, dass owner_filter eine Teilstring-Suche auf Vor- oder Nachname erlaubt
+            query = query.join(Transponder.owner).filter(
+                (Transponder.owner.first_name.ilike(f"%{owner_filter}%")) |
+                (Transponder.owner.last_name.ilike(f"%{owner_filter}%"))
+            )
+
+        # Filter für issuer (ausgeber)
+        if issuer_filter:
+            query = query.join(Transponder.issuer).filter(
+                (Transponder.issuer.first_name.ilike(f"%{issuer_filter}%")) |
+                (Transponder.issuer.last_name.ilike(f"%{issuer_filter}%"))
+            )
 
         transponder_list = query.all()
 
@@ -443,13 +470,26 @@ def aggregate_transponder_view():
         column_labels = list(rows[0].keys()) if rows else []
         row_data = [[html.escape(str(row[col])) for col in column_labels] for row in rows]
 
+        # Filter-Dict zum dynamischen Befüllen des Formulars und Anzeige des Status
+        filters = {
+            "Nur nicht zurückgegebene anzeigen": show_only_unreturned,
+            "Besitzer (Ausgegeben an)": owner_filter,
+            "Ausgeber (Ausgegeben durch)": issuer_filter
+        }
+
         return render_template(
             "aggregate_view.html",
             title="Ausgegebene Transponder",
             column_labels=column_labels,
             row_data=row_data,
-            filters={"Nur nicht zurückgegebene anzeigen": show_only_unreturned},
-            toggle_url=url_for("aggregate_transponder_view", unreturned="0" if show_only_unreturned else "1")
+            filters=filters,
+            # toggle_url nicht mehr hart codiert, hier auf Basis aktueller Filter mit geändertem "unreturned"
+            toggle_url=url_for(
+                "aggregate_transponder_view",
+                unreturned="0" if show_only_unreturned else "1",
+                owner=owner_filter,
+                issuer=issuer_filter
+            )
         )
 
     except Exception as e:
@@ -458,11 +498,16 @@ def aggregate_transponder_view():
 
 @app.route("/aggregate/inventory")
 def aggregate_inventory_view():
-    session = Session()
-    show_only_unreturned = request.args.get("unreturned") == "1"
-
+    session = None
     try:
-        # Grundquery mit sinnvollen Joins für relevante Beziehungen
+        session = Session()
+
+        # Query-Parameter auslesen
+        show_only_unreturned = request.args.get("unreturned") == "1"
+        owner_filter = request.args.get("owner", type=int)
+        issuer_filter = request.args.get("issuer", type=int)
+
+        # Grundquery mit Joins
         query = session.query(Inventory) \
             .options(
                 joinedload(Inventory.owner),
@@ -474,40 +519,44 @@ def aggregate_inventory_view():
                 joinedload(Inventory.room)
             )
 
-
-        # Filter für nicht zurückgegebene Inventarobjekte (return_date ist None)
+        # Filter anwenden
         if show_only_unreturned:
             query = query.filter(Inventory.return_date.is_(None))
 
+        if owner_filter:
+            query = query.filter(Inventory.owner_id == owner_filter)
+
+        if issuer_filter:
+            query = query.filter(Inventory.issuer_id == issuer_filter)
+
         inventory_list = query.all()
+
+        # Hilfsfunktionen
+        def person_name(p):
+            if p:
+                return f"{p.first_name} {p.last_name}"
+            return "Unbekannt"
+
+        def category_name(c):
+            return c.name if c else "-"
+
+        def kostenstelle_name(k):
+            return k.name if k else "-"
+
+        def abteilung_name(a):
+            return a.name if a else "-"
+
+        def professorship_name(pf):
+            return pf.name if pf else "-"
+
+        def room_name(r):
+            if r:
+                floor_str = f"{r.floor}.OG" if r.floor is not None else "?"
+                return f"{r.name} ({floor_str})"
+            return "-"
 
         rows = []
         for inv in inventory_list:
-            # Hilfsfunktionen zum sicheren Zugriff auf Fremdobjekte
-            def person_name(p):
-                if p:
-                    return f"{p.first_name} {p.last_name}"
-                else:
-                    return "Unbekannt"
-
-            def category_name(c):
-                return c.name if c else "-"
-
-            def kostenstelle_name(k):
-                return k.name if k else "-"
-
-            def abteilung_name(a):
-                return a.name if a else "-"
-
-            def professorship_name(pf):
-                return pf.name if pf else "-"
-
-            def room_name(r):
-                if r:
-                    floor_str = f"{r.floor}.OG" if r.floor is not None else "?"
-                    return f"{r.name} ({floor_str})"
-                return "-"
-
             row = {
                 "ID": inv.id,
                 "Seriennummer": inv.serial_number or "-",
@@ -527,21 +576,33 @@ def aggregate_inventory_view():
             }
             rows.append(row)
 
+        # Für Filter: Alle User (Owner und Issuer) holen (vereinfachend hier alle Personen)
+        # Du kannst ggf. nur Owner oder Issuer spezifisch holen, falls nötig
+        people_query = session.query(Person).order_by(Person.last_name, Person.first_name).all()
+        people = [{"id": p.id, "name": f"{p.first_name} {p.last_name}"} for p in people_query]
+
         column_labels = list(rows[0].keys()) if rows else []
-        row_data = [[html.escape(str(row[col])) for col in column_labels] for row in rows]
+        row_data = [[escape(str(row[col])) for col in column_labels] for row in rows]
 
         return render_template(
             "aggregate_view.html",
             title="Inventarübersicht",
             column_labels=column_labels,
             row_data=row_data,
-            filters={"Nur nicht zurückgegebene anzeigen": show_only_unreturned},
-            toggle_url=url_for("aggregate_inventory_view", unreturned="0" if show_only_unreturned else "1")
+            filters={
+                "unreturned": show_only_unreturned,
+                "owner": owner_filter,
+                "issuer": issuer_filter,
+            },
+            people=people,
+            url_for_view=url_for("aggregate_inventory_view")
         )
-
     except Exception as e:
         app.logger.error(f"Fehler beim Laden der Inventar-Aggregatsansicht: {e}")
         return render_template("error.html", message="Fehler beim Laden der Daten.")
+    finally:
+        if session:
+            session.close()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
