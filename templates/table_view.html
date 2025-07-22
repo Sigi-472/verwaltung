@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ table_name|capitalize }} - Datenbank Editor</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <style>
+        {{ style_css|safe }}
+    </style>
+</head>
+<body>
+    <h2>{{ table_name|capitalize }}</h2>
+    <a href="/">← zurück</a>
+    <table class="edit-table">
+        <thead>
+            <tr>
+                {% for col_label in column_labels %}
+                    <th>{{ col_label }}</th>
+                {% endfor %}
+                <th>Aktion</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row_inputs in row_html %}
+                <tr>
+                    {% for input_html in row_inputs %}
+                        <td data-label="{{ input_html[1]|e }}">{{ input_html[0]|safe }}</td>
+                    {% endfor %}
+                    <td></td>
+                </tr>
+            {% endfor %}
+            <tr class="new-entry">
+                {% for input_html in new_entry_inputs %}
+                    <td data-label="{{ input_html[1]|e }}">{{ input_html[0]|safe }}</td>
+                {% endfor %}
+                <td><button class="save-new" title="Neuen Eintrag speichern">Speichern</button></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        {{ javascript_code|safe }}
+    </script>
+</body>
+</html>

@@ -41,7 +41,7 @@ def restart_with_venv():
         sys.exit(1)
 
 try:
-    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker
     from db_defs import Base
@@ -98,6 +98,8 @@ def favicon():
     return send_from_directory(app.static_folder, 'favicon.ico')
 
 
+
+
 @app.route("/table/<table_name>")
 def table_view(table_name):
     session = Session()
@@ -127,7 +129,7 @@ def table_view(table_name):
         val = "" if value is None else html.escape(str(value))
         if col.name in fk_options:
             opts = "".join(
-                f'<option value="{o[0]}" {"selected" if str(o[0])==val else ""}>{escape(o[1])}</option>'
+                f'<option value="{o[0]}" {"selected" if str(o[0])==val else ""}>{html.escape(o[1])}</option>'
                 for o in fk_options[col.name]
             )
             return f'<select name="{input_name}" class="cell-input">{opts}</select>'
@@ -141,229 +143,36 @@ def table_view(table_name):
             return f'<input type="date" name="{input_name}" value="{val}" class="cell-input">'
         return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
 
-    html_out = [f"""<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<title>{table_name.capitalize()} - Datenbank Editor</title>
-
-<!-- Toastr CSS -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-
-<style>
-    body {{
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        margin: 2em;
-        background: #f4f7fa;
-        color: #2c3e50;
-    }}
-    h2 {{
-        margin-bottom: 0.5em;
-        font-weight: 700;
-        color: #34495e;
-    }}
-    a {{
-        text-decoration: none;
-        color: #2980b9;
-        font-weight: 600;
-    }}
-    a:hover {{
-        text-decoration: underline;
-    }}
-
-    table.edit-table {{
-        border-collapse: collapse;
-        width: 100%;
-        margin-bottom: 2em;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        background: white;
-        border-radius: 6px;
-        overflow: hidden;
-    }}
-    thead tr {{
-        background-color: #2980b9;
-        color: white;
-        text-align: left;
-        font-weight: 600;
-        user-select: none;
-    }}
-    th, td {{
-        padding: 10px 15px;
-        border-bottom: 1px solid #ddd;
-        vertical-align: middle;
-    }}
-    tbody tr:hover:not(.new-entry) {{
-        background-color: #ecf0f1;
-    }}
-    input.cell-input, select.cell-input {{
-        width: 100%;
-        padding: 6px 8px;
-        border: 1px solid #bdc3c7;
-        border-radius: 4px;
-        font-size: 0.95rem;
-        transition: border-color 0.2s ease-in-out;
-    }}
-    input.cell-input:focus, select.cell-input:focus {{
-        border-color: #2980b9;
-        outline: none;
-        box-shadow: 0 0 6px #2980b9aa;
-    }}
-
-    .new-entry {{
-        background-color: #dff0d8;
-        font-weight: 600;
-    }}
-    .new-entry td {{
-        padding-top: 14px;
-        padding-bottom: 14px;
-    }}
-
-    button.save-new {{
-        background-color: #27ae60;
-        border: none;
-        color: white;
-        padding: 8px 14px;
-        cursor: pointer;
-        border-radius: 4px;
-        font-weight: 700;
-        font-size: 1rem;
-        transition: background-color 0.3s ease;
-        width: 100%;
-    }}
-    button.save-new:hover {{
-        background-color: #219150;
-    }}
-
-    @media (max-width: 768px) {{
-        body {{
-            margin: 1em;
-        }}
-        table.edit-table, thead tr, tbody tr, th, td {{
-            display: block;
-            width: 100%;
-        }}
-        thead tr {{
-            display: none;
-        }}
-        tbody tr {{
-            margin-bottom: 1.5em;
-            border-radius: 8px;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.1);
-            background: white;
-            padding: 1em;
-        }}
-        tbody tr td {{
-            border: none;
-            padding: 8px 4px;
-            position: relative;
-            padding-left: 50%;
-        }}
-        tbody tr td::before {{
-            position: absolute;
-            top: 8px;
-            left: 10px;
-            width: 45%;
-            white-space: nowrap;
-            font-weight: 600;
-            color: #7f8c8d;
-            content: attr(data-label);
-        }}
-        button.save-new {{
-            width: 100%;
-        }}
-    }}
-</style>
-</head>
-<body>
-<h2>{table_name.capitalize()}</h2>
-<a href="/">← zurück</a>
-<table class="edit-table">
-<thead><tr>"""]
-
-    for col in columns:
-        label = column_label(table_name, col.name)
-        html_out.append(f'<th>{escape(label)}</th>')
-    html_out.append('<th>Aktion</th></tr></thead><tbody>')
-
+    # Daten vorbereiten für Template
+    column_labels = [column_label(table_name, col.name) for col in columns]
+    row_html = []
     for row in rows:
-        html_out.append('<tr>')
+        row_inputs = []
         for col in columns:
-            attr_name = col.name
-            if attr_name == "return":
-                attr_name = "return_"  # oder wie du es im Model umbenannt hast
-            value = getattr(row, attr_name)
-            # Für responsive mobile Labels
+            value = getattr(row, col.name if col.name != "return" else "return_")
             label = column_label(table_name, col.name)
-            html_out.append(f'<td data-label="{escape(label)}">{get_input(col, value, row_id=row.id)}</td>')
-        html_out.append('<td></td></tr>')
+            row_inputs.append((get_input(col, value, row_id=row.id), label))
+        row_html.append(row_inputs)
 
-    html_out.append('<tr class="new-entry">')
-    for col in columns:
-        label = column_label(table_name, col.name)
-        html_out.append(f'<td data-label="{escape(label)}">{get_input(col)}</td>')
-    html_out.append('<td><button class="save-new" title="Neuen Eintrag speichern">Speichern</button></td></tr>')
+    new_entry_inputs = [
+        (get_input(col), column_label(table_name, col.name)) for col in columns
+    ]
 
-    html_out.append('</tbody></table>')
+    # CSS und JS separat halten für bessere Übersichtlichkeit
+    with open("static/table_styles.css") as f:
+        style_css = f.read()
+    with open("static/table_scripts.js") as f:
+        javascript_code = f.read().replace("{{ table_name }}", table_name)
 
-    # Javascript + Toastr + jQuery
-    html_out.append("""
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-<script>
-toastr.options = {
-  "closeButton": true,
-  "debug": false,
-  "newestOnTop": true,
-  "progressBar": true,
-  "positionClass": "toast-top-right",
-  "preventDuplicates": true,
-  "showDuration": "300",
-  "hideDuration": "1000",
-  "timeOut": "3500",
-  "extendedTimeOut": "1000",
-  "showEasing": "swing",
-  "hideEasing": "linear",
-  "showMethod": "fadeIn",
-  "hideMethod": "fadeOut"
-};
-
-$(".cell-input").filter(function() {
-    return $(this).closest(".new-entry").length === 0;
-}).on("change", function() {
-    const name = $(this).attr("name");
-    const value = $(this).val();
-    $.post("/update/""" + table_name + """", { name, value }, function(resp) {
-        if (!resp.success) {
-            toastr.error("Fehler beim Updaten: " + resp.error);
-        } else {
-            toastr.success("Eintrag geupdatet");
-        }
-    }, "json").fail(function() {
-        toastr.error("Netzwerkfehler beim Updaten");
-    });
-});
-$(".save-new").on("click", function() {
-    const data = {};
-    $(".new-entry input, .new-entry select").each(function() {
-        data[$(this).attr("name")] = $(this).val();
-    });
-    $.post("/add/""" + table_name + """", data, function(resp) {
-        if (!resp.success) {
-            toastr.error("Fehler beim Speichern: " + resp.error);
-        } else {
-            toastr.success("Eintrag gespeichert");
-            location.reload();
-        }
-    }, "json").fail(function() {
-        toastr.error("Netzwerkfehler beim Speichern");
-    });
-});
-</script>
-</body>
-</html>
-""")
-
-    return render_template_string("\n".join(html_out))
+    return render_template(
+        "table_view.html",
+        table_name=table_name,
+        column_labels=column_labels,
+        row_html=row_html,
+        new_entry_inputs=new_entry_inputs,
+        style_css=style_css,
+        javascript_code=javascript_code
+    )
 
 
 @app.route("/add/<table_name>", methods=["POST"])
