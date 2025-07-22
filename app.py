@@ -609,5 +609,77 @@ def aggregate_inventory_view():
         if session:
             session.close()
 
+@app.route("/wizard/person", methods=["GET", "POST"])
+def wizard_person():
+    session = Session()
+    error = None
+    success = False
+
+    if request.method == "POST":
+        try:
+            title = request.form.get("title", "").strip() or None
+            first_name = request.form.get("first_name", "").strip()
+            last_name = request.form.get("last_name", "").strip()
+            comment = request.form.get("comment", "").strip() or None
+            image_url = request.form.get("image_url", "").strip() or None
+
+            if not first_name or not last_name:
+                raise ValueError("Vorname und Nachname sind Pflichtfelder.")
+
+            emails = request.form.getlist("email[]")
+            phones = request.form.getlist("phone[]")
+            faxes = request.form.getlist("fax[]")
+            comments = request.form.getlist("contact_comment[]")
+
+            valid_emails = [e.strip() for e in emails if e.strip() != ""]
+            if len(valid_emails) == 0:
+                raise ValueError("Mindestens eine Email muss eingegeben werden.")
+
+            for email in valid_emails:
+                if not is_valid_email(email):
+                    raise ValueError(f"Ungültige Email-Adresse: {email}")
+
+            new_person = Person(
+                title=title,
+                first_name=first_name,
+                last_name=last_name,
+                comment=comment,
+                image_url=image_url
+            )
+            session.add(new_person)
+            session.flush()
+
+            max_len = max(len(emails), len(phones), len(faxes), len(comments))
+            for i in range(max_len):
+                email_val = emails[i].strip() if i < len(emails) else None
+                phone_val = phones[i].strip() if i < len(phones) else None
+                fax_val = faxes[i].strip() if i < len(faxes) else None
+                comment_val = comments[i].strip() if i < len(comments) else None
+
+                if any([email_val, phone_val, fax_val, comment_val]):
+                    if email_val and not is_valid_email(email_val):
+                        raise ValueError(f"Ungültige Email-Adresse in Kontakt: {email_val}")
+
+                    contact = PersonContact(
+                        person_id=new_person.id,
+                        email=email_val,
+                        phone=phone_val,
+                        fax=fax_val,
+                        comment=comment_val
+                    )
+                    session.add(contact)
+
+            session.commit()
+            success = True
+
+        except Exception as e:
+            session.rollback()
+            error = str(e) + "\n" + traceback.format_exc()
+
+        finally:
+            session.close()
+
+    return render_template("person_wizard.html", success=success, error=error)
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
