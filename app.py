@@ -258,7 +258,6 @@ def prepare_table_data(session, cls, table_name):
                 table_name=table_name
             )
             if not valid:
-                print(col)
                 table_has_missing_inputs = True
         except Exception as e:
             app.logger.error(f"Fehler bei der Generierung des neuen Input-Felds für {col.name}: {e}")
