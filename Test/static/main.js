@@ -1,3 +1,6 @@
+// TODO: Snapping mit mehreren Snapfeldern geht noch nicht
+
+
 const floorplan = document.getElementById("floorplan");
 let scale = 1;
 let offsetX = 0;
