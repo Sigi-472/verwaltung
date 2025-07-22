@@ -42,7 +42,7 @@ def restart_with_venv():
 try:
     from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort
     from sqlalchemy import create_engine, inspect
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.orm import sessionmaker, joinedload
     from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom, Inventory, Object
     from markupsafe import escape
     import html
@@ -455,10 +455,6 @@ def aggregate_transponder_view():
     except Exception as e:
         app.logger.error(f"Fehler beim Laden der Transponder-Aggregatsansicht: {e}")
         return render_template("error.html", message="Fehler beim Laden der Daten.")
-
-from flask import render_template, request, url_for
-from sqlalchemy.orm import joinedload
-import html
 
 @app.route("/aggregate/inventory")
 def aggregate_inventory_view():
