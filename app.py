@@ -688,5 +688,9 @@ def wizard_person():
 
     return render_template("person_wizard.html", success=success, error=error)
 
+@app.route("/map-editor")
+def index():
+    return render_template("map_editor.html")
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
