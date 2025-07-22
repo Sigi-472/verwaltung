@@ -9,6 +9,7 @@ Base = declarative_base()
 class Person(Base):
     __tablename__ = "person"
     id = Column(Integer, primary_key=True)
+    title = Column(Text)
     first_name = Column(Text)
     last_name = Column(Text)
     created_at = Column(TIMESTAMP)
