@@ -43,7 +43,7 @@ try:
     from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker
-    from db_defs import Base
+    from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom
     from markupsafe import escape
     import html
     from sqlalchemy import Date, DateTime
@@ -402,6 +402,59 @@ def delete_entry(table_name):
     except Exception as e:
         session.rollback()
         return jsonify(success=False, error=str(e))
+
+
+@app.route("/aggregate/")
+def aggregate_index():
+    return render_template("aggregate_index.html")  # Optional – nur als Startseite für Aggregates
+
+@app.route("/aggregate/transponder")
+def aggregate_transponder_view():
+    session = Session()
+    show_only_unreturned = request.args.get("unreturned") == "1"
+
+    try:
+        query = session.query(Transponder).join(Transponder.owner).outerjoin(Transponder.room_links).outerjoin(TransponderToRoom.room).outerjoin(Room.building)
+        if show_only_unreturned:
+            query = query.filter(Transponder.return_date.is_(None))
+
+        transponder_list = query.all()
+
+        rows = []
+        for t in transponder_list:
+            owner = t.owner
+            issuer = t.issuer
+            rooms = [link.room for link in t.room_links if link.room]
+            buildings = list({r.building.name if r.building else "?" for r in rooms})
+
+            row = {
+                "ID": t.id,
+                "Seriennummer": t.serial_number or "-",
+                "Ausgegeben an": f"{owner.first_name} {owner.last_name}" if owner else "Unbekannt",
+                "Ausgegeben durch": f"{issuer.first_name} {issuer.last_name}" if issuer else "Unbekannt",
+                "Ausgabedatum": t.got_date.isoformat() if t.got_date else "-",
+                "Rückgabedatum": t.return_date.isoformat() if t.return_date else "Nicht zurückgegeben",
+                "Gebäude": ", ".join(sorted(buildings)) if buildings else "-",
+                "Räume": ", ".join(sorted(set(f"{r.name} ({r.floor}.OG)" for r in rooms))) if rooms else "-",
+                "Kommentar": t.comment or "-"
+            }
+            rows.append(row)
+
+        column_labels = list(rows[0].keys()) if rows else []
+        row_data = [[html.escape(str(row[col])) for col in column_labels] for row in rows]
+
+        return render_template(
+            "aggregate_view.html",
+            title="Ausgegebene Transponder",
+            column_labels=column_labels,
+            row_data=row_data,
+            filters={"Nur nicht zurückgegebene anzeigen": show_only_unreturned},
+            toggle_url=url_for("aggregate_transponder_view", unreturned="0" if show_only_unreturned else "1")
+        )
+
+    except Exception as e:
+        app.logger.error(f"Fehler beim Laden der Transponder-Aggregatsansicht: {e}")
+        return render_template("error.html", message="Fehler beim Laden der Daten.")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
