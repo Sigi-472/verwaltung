@@ -1,11 +1,69 @@
-from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import sessionmaker
-from db_defs import Base
-from markupsafe import escape
-import html
-from sqlalchemy import Date, DateTime
-import datetime
+import sys
+import re
+import platform
+import shutil
+import os
+import subprocess
+
+try:
+    import venv
+except ModuleNotFoundError:
+    print("venv not found. Is python3-venv installed?")
+    sys.exit(1)
+
+
+from pathlib import Path
+
+VENV_PATH = Path.home() / ".verwaltung_venv"
+PYTHON_BIN = VENV_PATH / ("Scripts" if platform.system() == "Windows" else "bin") / ("python.exe" if platform.system() == "Windows" else "python")
+
+def create_and_setup_venv():
+    print(f"Creating virtualenv at {VENV_PATH}")
+    venv.create(VENV_PATH, with_pip=True)
+    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "pip"])
+    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "flask", "sqlalchemy"])
+
+def restart_with_venv():
+    try:
+        result = subprocess.run(
+            [str(PYTHON_BIN)] + sys.argv,
+            text=True,
+            check=True,
+            env=dict(**os.environ)
+        )
+        sys.exit(result.returncode)
+    except subprocess.CalledProcessError as e:
+        print("Subprocess Error:")
+        print(f"Exit-Code: {e.returncode}")
+        sys.exit(e.returncode)
+    except Exception as e:
+        print(f"Unexpected error while restarting python: {e}")
+        sys.exit(1)
+
+try:
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory
+    from sqlalchemy import create_engine, inspect
+    from sqlalchemy.orm import sessionmaker
+    from db_defs import Base
+    from markupsafe import escape
+    import html
+    from sqlalchemy import Date, DateTime
+    import datetime
+except ModuleNotFoundError:
+    if not VENV_PATH.exists():
+        create_and_setup_venv()
+    else:
+        try:
+            subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "-q", "--upgrade", "flask", "sqlalchemy"])
+        except subprocess.CalledProcessError:
+            shutil.rmtree(VENV_PATH)
+            create_and_setup_venv()
+            restart_with_venv()
+    try:
+        restart_with_venv()
+    except KeyboardInterrupt:
+        print("You cancelled installation")
+        sys.exit(0)
 
 app = Flask(__name__)
 engine = create_engine("sqlite:///database.db")
