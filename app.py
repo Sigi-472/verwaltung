@@ -470,6 +470,5 @@ def update_entry(table_name):
         session.rollback()
         return jsonify(success=False, error=str(e))
 
-
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

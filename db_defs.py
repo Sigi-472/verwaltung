@@ -14,6 +14,7 @@ class Person(Base):
     last_name = Column(Text)
     created_at = Column(TIMESTAMP)
     comment = Column(Text)
+    image_url = Column(Text)
 
     contacts = relationship("PersonContact", back_populates="person", cascade="all, delete")
     rooms = relationship("PersonToRoom", back_populates="person", cascade="all, delete")
