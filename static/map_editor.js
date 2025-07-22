@@ -315,10 +315,12 @@ function removeTempRects() {
 		if(el) el.remove();
 	});
 }
+
 function renderAll() {
-	container.innerHTML = '';
-	rooms.forEach(room => container.appendChild(createRoomElement(room)));
-	snapzones.forEach(sz => container.appendChild(createSnapzoneElement(sz)));
+	const overlay = document.getElementById('overlay');
+	overlay.innerHTML = '';
+	rooms.forEach(room => overlay.appendChild(createRoomElement(room)));
+	snapzones.forEach(sz => overlay.appendChild(createSnapzoneElement(sz)));
 	updateOutput();
 }
 

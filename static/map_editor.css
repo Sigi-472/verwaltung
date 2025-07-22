@@ -1,12 +1,18 @@
 #container {
 	position: relative;
-	width: 1100px;
-	height: 370px;
+	width: 100%;
 	margin: 20px auto;
-	background: url('/static/sechste_etage.png') no-repeat top left;
-	background-size: contain;
+	overflow: auto; /* wichtig: ermöglicht Scrollen bei Overflow */
 	border: 1px solid #ccc;
 }
+
+#floorplan {
+	display: block;
+	max-width: none; /* wichtig: Bild nicht beschränken */
+	user-select: none;
+	pointer-events: none;
+}
+
 .room {
 	position: absolute;
 	border: 1px solid rgba(0,0,255,0.6);
