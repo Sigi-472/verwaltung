@@ -158,19 +158,52 @@ def build_fk_options(fk_columns, base, session, fk_display_columns):
 
 def generate_input_html(table_name, col, value, row_id, fk_options):
     """
-    Generiert das HTML-Formularelement (input/select) für eine einzelne Zelle.
+    Generiert das HTML-Formularelement (input/autocomplete/select) für eine einzelne Zelle.
+    Wenn FK: jQuery UI Autocomplete.
     """
     try:
         input_name = f"{table_name}_{row_id or 'new'}_{col.name}"
         val = "" if value is None else html.escape(str(value))
-        if col.name in fk_options:
-            opts = "".join(
-                f'<option value="{html.escape(str(o[0]))}" {"selected" if str(o[0]) == val else ""}>{html.escape(o[1])}</option>'
-                for o in fk_options[col.name]
-            )
-            return f'<select name="{input_name}" class="cell-input">{opts}</select>'
-
         col_type_str = str(col.type).upper()
+
+        if col.name in fk_options:
+            # Autocomplete für Foreign Key Spalten
+            datalist = [
+                {
+                    "label": o[1],
+                    "value": str(o[0])
+                }
+                for o in fk_options[col.name]
+            ]
+            # JSON-String für das data-autocomplete Attribut
+            data_json = html.escape(str(datalist).replace("'", '"'))
+
+            html_input = (
+                f'<input type="text" name="{input_name}" value="{val}" '
+                f'class="cell-input autocomplete-{col.name}" '
+                f'data-autocomplete=\'{data_json}\'>\n'
+            )
+
+            # Nur bei row_id == 'new' das JS einmal pro Spalte rendern (nicht pro Zelle)
+            if row_id in (None, 'new'):
+                html_input += (
+                    f"<script>\n"
+                    f"$(function() {{\n"
+                    f"  var data = $('.autocomplete-{col.name}').data('autocomplete');\n"
+                    f"  $('.autocomplete-{col.name}').autocomplete({{\n"
+                    f"    source: data,\n"
+                    f"    minLength: 0,\n"
+                    f"    delay: 0,\n"
+                    f"    autoFocus: true\n"
+                    f"  }});\n"
+                    f"  $('.autocomplete-{col.name}').focus(function() {{ $(this).autocomplete('search', ''); }});\n"
+                    f"}});\n"
+                    f"</script>\n"
+                )
+
+            return html_input
+
+        # Standard-Typen
         if "INTEGER" in col_type_str:
             return f'<input type="number" name="{input_name}" value="{val}" class="cell-input">'
         if "FLOAT" in col_type_str or "NUMERIC" in col_type_str or "DECIMAL" in col_type_str:
@@ -179,11 +212,11 @@ def generate_input_html(table_name, col, value, row_id, fk_options):
             return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
         if "DATE" in col_type_str:
             return f'<input type="date" name="{input_name}" value="{val}" class="cell-input">'
-        # Default fallback
+
         return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
+
     except Exception as e:
-        # Im Fehlerfall ein leeres Feld zurückgeben
-        return f'<input type="text" name="{input_name}" value="" class="cell-input">'
+        return f'<input type="text" name="{table_name}_{row_id or "new"}_{col.name}" value="" class="cell-input">'
 
 def build_rows_html(rows, columns, table_name, fk_options):
     """
