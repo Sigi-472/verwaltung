@@ -79,6 +79,30 @@ FK_DISPLAY_COLUMNS = {
     "person": ["title", "first_name", "last_name"]
 }
 
+WIZARDS = {}
+
+WIZARDS["transponder"] = {
+    "title": "Transponder erstellen",
+    "model": Transponder,
+    "fields": [
+        {"name": "issuer_id", "type": "number", "label": "Ausgeber-ID", "required": True},
+        {"name": "owner_id", "type": "number", "label": "Besitzer-ID"},
+        {"name": "serial_number", "type": "text", "label": "Seriennummer"},
+        {"name": "got_date", "type": "date", "label": "Ausgabedatum"},
+    ],
+    "subforms": [
+        {
+            "name": "room_links",
+            "label": "Zugeordnete Räume",
+            "model": TransponderToRoom,
+            "foreign_key": "transponder_id",
+            "fields": [
+                {"name": "room_id", "type": "number", "label": "Raum-ID"},
+            ]
+        }
+    ]
+}
+
 EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
 
 def is_valid_email(email):
@@ -698,6 +722,71 @@ def wizard_person():
 @app.route("/map-editor")
 def map_editor():
     return render_template("map_editor.html")
+
+from copy import deepcopy
+
+@app.route("/wizard/transponder", methods=["GET", "POST"])
+def run_wizard():
+    return _wizard_internal("transponder")
+
+def _wizard_internal(name):
+    config = WIZARDS.get(name)
+    if not config:
+        abort(404)
+
+    # JSON-sichere Version ohne nicht-serialisierbare Objekte
+    def get_json_safe_config(config):
+        safe = deepcopy(config)
+        for sub in safe.get("subforms", []):
+            sub.pop("model", None)
+            sub.pop("foreign_key", None)
+        safe.pop("model", None)
+        return safe
+
+    session = Session()
+    success = False
+    error = None
+
+    if request.method == "POST":
+        try:
+            main_model = config["model"]
+            main_data = {
+                f["name"]: request.form.get(f["name"], "").strip() or None
+                for f in config["fields"]
+            }
+
+            if any(f.get("required") and not main_data[f["name"]] for f in config["fields"]):
+                raise ValueError("Pflichtfelder fehlen.")
+
+            main_instance = main_model(**main_data)
+            session.add(main_instance)
+            session.flush()
+
+            for sub in config.get("subforms", []):
+                model = sub["model"]
+                foreign_key = sub["foreign_key"]
+                field_names = [f["name"] for f in sub["fields"]]
+                data_lists = {f: request.form.getlist(f + "[]") for f in field_names}
+
+                for i in range(max(len(l) for l in data_lists.values())):
+                    entry = {
+                        f: data_lists[f][i].strip() if i < len(data_lists[f]) else None
+                        for f in field_names
+                    }
+                    if any(entry.values()):
+                        entry[foreign_key] = main_instance.id
+                        session.add(model(**entry))
+
+            session.commit()
+            success = True
+
+        except Exception as e:
+            session.rollback()
+            error = str(e)
+        finally:
+            session.close()
+
+    return render_template("wizard.html", config=config, config_json=get_json_safe_config(config), success=success, error=error)
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
