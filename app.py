@@ -187,13 +187,29 @@ def prepare_table_data(session, cls, table_name):
     fk_columns = get_foreign_key_columns(columns)
     fk_options = get_fk_options(session, fk_columns)
 
-    rows = session.query(cls).all()
+    try:
+        rows = session.query(cls).all()
+    except Exception as e:
+        app.logger.error(f"Fehler bei der Abfrage der Tabelle {table_name}: {e}")
+        rows = []
 
     row_html = []
+    row_ids = []
+
     for row in rows:
         row_inputs = []
+        # Versuche, die ID zu holen. Falls 'id' nicht existiert, nimm erste Spalte als Ersatz
+        try:
+            row_id = getattr(row, "id", None)
+            if row_id is None:
+                first_col_name = columns[0].name if columns else None
+                row_id = getattr(row, first_col_name, None) if first_col_name else None
+        except Exception as e:
+            app.logger.error(f"Fehler beim Zugriff auf ID der Zeile: {e}")
+            row_id = None
+        row_ids.append(row_id)
+
         for col in columns:
-            # Spezialfall "return" umbenennen, falls nötig
             col_name = col.name
             if col_name == "return":
                 col_name = "return_"
@@ -201,20 +217,44 @@ def prepare_table_data(session, cls, table_name):
                 value = getattr(row, col_name)
             except AttributeError:
                 value = None
+            except Exception as e:
+                app.logger.error(f"Fehler beim Zugriff auf Spalte {col_name} der Tabelle {table_name}: {e}")
+                value = None
+
             label = get_column_label(table_name, col.name)
-            input_html = generate_input_field(col, value, row_id=getattr(row, "id", None), fk_options=fk_options, table_name=table_name)
+            try:
+                input_html = generate_input_field(
+                    col,
+                    value,
+                    row_id=row_id,
+                    fk_options=fk_options,
+                    table_name=table_name
+                )
+            except Exception as e:
+                app.logger.error(f"Fehler bei der Generierung des Input-Felds für {col.name}: {e}")
+                input_html = f'<input value="Error">'
+
             row_inputs.append((input_html, label))
         row_html.append(row_inputs)
 
     new_entry_inputs = []
     for col in columns:
-        input_html = generate_input_field(col, fk_options=fk_options, table_name=table_name)
+        try:
+            input_html = generate_input_field(
+                col,
+                fk_options=fk_options,
+                table_name=table_name
+            )
+        except Exception as e:
+            app.logger.error(f"Fehler bei der Generierung des neuen Input-Felds für {col.name}: {e}")
+            input_html = '<input value="Error">'
         label = get_column_label(table_name, col.name)
         new_entry_inputs.append((input_html, label))
 
     column_labels = [get_column_label(table_name, col.name) for col in columns]
 
-    return column_labels, row_html, new_entry_inputs
+    # Jetzt die IDs mit zurückgeben
+    return column_labels, row_html, new_entry_inputs, row_ids
 
 def load_static_file(path):
     try:
@@ -231,15 +271,17 @@ def table_view(table_name):
     if cls is None:
         abort(404, description="Tabelle nicht gefunden")
 
-    column_labels, row_html, new_entry_inputs = prepare_table_data(session, cls, table_name)
+    column_labels, row_html, new_entry_inputs, row_ids = prepare_table_data(session, cls, table_name)
     style_css = load_static_file("static/table_styles.css")
     javascript_code = load_static_file("static/table_scripts.js").replace("{{ table_name }}", table_name)
+
+    row_data = list(zip(row_html, row_ids))
 
     return render_template(
         "table_view.html",
         table_name=table_name,
         column_labels=column_labels,
-        row_html=row_html,
+        row_data=row_data,  # statt row_html + row_ids
         new_entry_inputs=new_entry_inputs,
         style_css=style_css,
         javascript_code=javascript_code,
