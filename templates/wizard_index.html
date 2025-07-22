@@ -6,16 +6,16 @@
     <link rel="stylesheet" href="../static/style.css">
 </head>
 <body>
-        <a href="/">← zurück</a>
-        <h1>Verfügbare Wizards</h1>
-        <ul class="list-group">
-            {% for route in wizard_routes %}
-                <li class="list-group-item">
-                    <a href="{{ route }}">{{ route }}</a>
-                </li>
-            {% else %}
-                <li class="list-group-item text-muted">Keine Wizards gefunden.</li>
-            {% endfor %}
-        </ul>
+    <a href="/">← zurück</a>
+    <h1>Verfügbare Wizards</h1>
+    <ul class="list-group">
+        {% for route in wizard_routes %}
+            <li class="list-group-item">
+                <a href="{{ route }}">{{ route[8:] }}</a>  {# /wizard/ hat 8 Zeichen #}
+            </li>
+        {% else %}
+            <li class="list-group-item text-muted">Keine Wizards gefunden.</li>
+        {% endfor %}
+    </ul>
 </body>
 </html>
