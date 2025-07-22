@@ -1,0 +1,86 @@
+html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: #e0e0e0;
+    font-family: sans-serif;
+}
+#viewport {
+    width: 100vw; height: 100vh; overflow: hidden; position: relative;
+    user-select: none; /* Verhindert Textauswahl beim Drag */
+}
+#floorplan {
+    position: absolute; top: 0; left: 0; transform-origin: top left;
+    width: 1200px; height: 400px;
+    background: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    cursor: grab;
+}
+.room {
+    position: absolute;
+    width: 200px; height: 150px;
+    border: 2px solid #007bff;
+    background: #f8f9fa;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    box-sizing: border-box;
+    overflow: visible;
+    z-index: 100;
+}
+.room-label {
+    position: absolute; top: 5px; left: 5px;
+    font-weight: bold; color: #007bff; z-index: 200; pointer-events: none;
+}
+.room-counter {
+    position: absolute; bottom: 5px; left: 5px;
+    font-size: 14px; color: #333; z-index: 200; pointer-events: none;
+}
+/* Snapping Zone kleiner und mit leicht transparentem hellgrauem Hintergrund + dünner Rahmen */
+.snapzone {
+    position: absolute;
+    width: 30px; 
+    height: 30px;
+    border: 1px solid rgba(200, 200, 200, 0.8); /* dünner, hellgrauer Rahmen */
+    background: rgba(220, 220, 220, 0.3); /* leicht transparent */
+    border-radius: 6px;
+    z-index: 150;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+/* Position der Snapzones im Raum: Laptop oben links, Stuhl unten rechts */
+.snapzone.laptop {
+    top: 15px;
+    left: 15px;
+}
+.snapzone.stuhl {
+    bottom: 15px;
+    right: 15px;
+}
+.object {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    cursor: grab;
+    user-select: none;
+    z-index: 300;
+    transition: left 0.15s ease, top 0.15s ease;
+}
+#addBtn {
+    position: fixed;
+    bottom: 20px; left: 20px;
+    z-index: 9999;
+    padding: 10px 15px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#shapeSelector {
+    position: fixed;
+    bottom: 70px;
+    left: 20px;
+    z-index: 9999;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 5px 10px;
+    display: none;
+}
