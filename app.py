@@ -76,7 +76,7 @@ COLUMN_LABELS = {
 }
 
 FK_DISPLAY_COLUMNS = {
-    "person": ["title", "first_name", "last_name"],
+    "person": ["title", "first_name", "last_name"]
 }
 
 def column_label(table, col):
