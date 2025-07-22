@@ -5,11 +5,6 @@
     <title>{{ table_name|capitalize }} - Datenbank Editor</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.14.1/themes/base/jquery-ui.css">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.14.1/jquery-ui.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-
     <style>
         {{ style_css|safe }}
     </style>
@@ -29,18 +24,10 @@
         <tbody>
             {% for row_inputs in row_html %}
                 <tr>
-                    {% set first_input = row_inputs[0][0] %}
-                    {% set name_attr = first_input.split('name="')[1].split('"')[0] %}
-                    {% set parts = name_attr.split('_') %}
-                    {% set row_id = parts[1] %}
                     {% for input_html in row_inputs %}
                         <td data-label="{{ input_html[1]|e }}">{{ input_html[0]|safe }}</td>
                     {% endfor %}
-                    <td>
-                        <button class="delete-entry"
-                                data-rowname="{{ table_name }}_{{ row_id }}_dummy"
-                                title="Eintrag löschen">Löschen</button>
-                    </td>
+                    <td></td>
                 </tr>
             {% endfor %}
             <tr class="new-entry">
@@ -52,6 +39,8 @@
         </tbody>
     </table>
 
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script>
         {{ javascript_code|safe }}
     </script>
