@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Fehler</title>
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: #fffbfb;
+            color: #aa0000;
+        }
+        h1 {
+            margin-top: 0;
+        }
+        a {
+            color: #0066cc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ein Fehler ist aufgetreten</h1>
+    <p>{{ message }}</p>
+    <p><a href="{{ url_for('index') }}">Zurück&nbsp;zur&nbsp;Startseite</a></p>
+</body>
+</html>

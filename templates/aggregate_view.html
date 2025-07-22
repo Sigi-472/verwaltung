@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        /* einfache Tabelle ohne Abhängigkeit von externem CSS */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        th, td {
+            border: 1px solid #cccccc;
+            padding: 6px 8px;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        th {
+            background: #f2f2f2;
+        }
+
+        /* Filter‑Box */
+        .filter-box {
+            margin: 16px 0;
+            padding: 12px;
+            background: #eef2ff;
+            border: 1px solid #ccd5ff;
+            border-radius: 4px;
+        }
+
+        .filter-box form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-box label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        button {
+            padding: 4px 10px;
+            cursor: pointer;
+        }
+
+        /* Responsive Tabelle – bei schmalen Bildschirmen horizontales Scrollen erlauben */
+        .table-wrapper {
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+
+    <div class="filter-box">
+        <form method="get" action="{{ url_for('aggregate_transponder_view') }}">
+            <label>
+                <input
+                    type="checkbox"
+                    name="unreturned"
+                    value="1"
+                    {% if filters["Nur nicht zurückgegebene anzeigen"] %}checked{% endif %}
+                >
+                Nur&nbsp;nicht&nbsp;zurückgegebene&nbsp;Transponder&nbsp;anzeigen
+            </label>
+            <button type="submit">Filter&nbsp;anwenden</button>
+            <a href="{{ url_for('aggregate_transponder_view') }}">Alle&nbsp;anzeigen</a>
+        </form>
+    </div>
+
+    {% if row_data %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    {% for col in column_labels %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in row_data %}
+                <tr>
+                    {% for cell in row %}
+                    <td>{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p><em>Keine Daten vorhanden.</em></p>
+    {% endif %}
+</body>
+</html>
