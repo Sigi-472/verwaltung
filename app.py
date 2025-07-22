@@ -609,6 +609,16 @@ def aggregate_inventory_view():
         if session:
             session.close()
 
+
+@app.route("/wizard")
+def wizard_index():
+    wizard_routes = []
+    for rule in app.url_map.iter_rules():
+        if rule.rule.startswith("/wizard") and rule.rule != "/wizard":
+            wizard_routes.append(rule.rule)
+    wizard_routes = sorted(wizard_routes)
+    return render_template("wizard_index.html", wizard_routes=wizard_routes)
+
 @app.route("/wizard/person", methods=["GET", "POST"])
 def wizard_person():
     session = Session()
