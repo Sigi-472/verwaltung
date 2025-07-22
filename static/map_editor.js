@@ -1,13 +1,13 @@
 // State
 let rooms = [];
+let snapzones = [];
 let currentMode = null; // 'draw-room', 'draw-snapzone', null
 let drawingRoom = null;
 let drawingSnapzone = null;
 let selectedRoomId = null;
-let dragData = null; // {type: 'room'|'snapzone', id, offsetX, offsetY, element}
-let resizeData = null; // {type, id, edge, startX, startY, startWidth, startHeight}
+let dragData = null; // {type: 'room'|'snapzone', id, ...}
+let resizeData = null;
 
-// IDs
 let roomCounter = 1;
 let snapzoneCounter = 1;
 
@@ -19,9 +19,9 @@ const snapzoneTypeSelect = document.getElementById('snapzone-type-select');
 const cancelDrawBtn = document.getElementById('cancel-draw-btn');
 
 const SNAPZONE_COLORS = {
-	laptop: 'rgba(255,165,0,0.3)', // orange
-	stuhl: 'rgba(0,255,0,0.3)',   // green
-	tisch: 'rgba(255,0,255,0.3)', // magenta
+	laptop: 'rgba(255,165,0,0.3)',
+	stuhl: 'rgba(0,255,0,0.3)',
+	tisch: 'rgba(255,0,255,0.3)',
 };
 
 const SNAPZONE_BORDER_COLORS = {
@@ -30,7 +30,6 @@ const SNAPZONE_BORDER_COLORS = {
 	tisch: 'magenta',
 };
 
-// Helpers
 function createElement(tag, cls, parent) {
 	const el = document.createElement(tag);
 	if(cls) el.className = cls;
@@ -41,24 +40,22 @@ function confirmDelete(msg) {
 	return window.confirm(msg);
 }
 function updateOutput() {
-	const exportData = rooms.map(room => {
-		return {
+	const exportData = {
+		rooms: rooms.map(room => ({
 			name: room.name,
 			x: Math.round(room.x),
 			y: Math.round(room.y),
 			width: Math.round(room.width),
-			height: Math.round(room.height),
-			snapzones: room.snapzones.map(sz => {
-				return {
-					type: sz.type,
-					x: Math.round(sz.x),
-					y: Math.round(sz.y),
-					width: Math.round(sz.width),
-					height: Math.round(sz.height)
-				};
-			})
-		};
-	});
+			height: Math.round(room.height)
+		})),
+		snapzones: snapzones.map(sz => ({
+			type: sz.type,
+			x: Math.round(sz.x),
+			y: Math.round(sz.y),
+			width: Math.round(sz.width),
+			height: Math.round(sz.height)
+		}))
+	};
 	output.textContent = JSON.stringify(exportData, null, 2);
 }
 function getMousePos(evt) {
@@ -68,15 +65,6 @@ function getMousePos(evt) {
 		y: evt.clientY - rect.top
 	};
 }
-function isInside(a, b) {
-	// a inside b? a,b = {x,y,width,height}
-	return a.x >= b.x &&
-		a.y >= b.y &&
-		a.x + a.width <= b.x + b.width &&
-		a.y + a.height <= b.y + b.height;
-}
-
-// Draw / Edit Logic
 function startDrawRoom() {
 	currentMode = 'draw-room';
 	drawRoomBtn.disabled = true;
@@ -86,10 +74,6 @@ function startDrawRoom() {
 	container.style.cursor = 'crosshair';
 }
 function startDrawSnapzone() {
-	if(selectedRoomId === null) {
-		alert('Bitte zuerst einen Raum auswählen.');
-		return;
-	}
 	currentMode = 'draw-snapzone';
 	drawRoomBtn.disabled = true;
 	drawSnapzoneBtn.disabled = true;
@@ -102,13 +86,12 @@ function cancelDraw() {
 	drawingRoom = null;
 	drawingSnapzone = null;
 	drawRoomBtn.disabled = false;
-	drawSnapzoneBtn.disabled = selectedRoomId === null;
-	snapzoneTypeSelect.disabled = selectedRoomId === null;
+	drawSnapzoneBtn.disabled = false;
+	snapzoneTypeSelect.disabled = false;
 	cancelDrawBtn.disabled = true;
 	container.style.cursor = 'default';
 	renderAll();
 }
-
 function createRoomElement(room) {
 	const el = createElement('div', 'room', container);
 	el.style.left = room.x + 'px';
@@ -117,7 +100,6 @@ function createRoomElement(room) {
 	el.style.height = room.height + 'px';
 	el.dataset.id = room.id;
 
-	// Name input
 	const nameInput = createElement('input', 'name-input', el);
 	nameInput.type = 'text';
 	nameInput.value = room.name;
@@ -127,7 +109,6 @@ function createRoomElement(room) {
 		updateOutput();
 	});
 
-	// Delete button
 	const delBtn = createElement('div', 'delete-btn', el);
 	delBtn.textContent = '×';
 	delBtn.title = 'Raum löschen';
@@ -135,43 +116,17 @@ function createRoomElement(room) {
 		e.stopPropagation();
 		if(confirmDelete(`Raum "${room.name || room.id}" löschen?`)) {
 			rooms = rooms.filter(r => r.id !== room.id);
-			if(selectedRoomId === room.id) {
-				selectedRoomId = null;
-				drawSnapzoneBtn.disabled = true;
-				snapzoneTypeSelect.disabled = true;
-			}
 			updateOutput();
 			renderAll();
 		}
 	});
 
-	// Drag & Resize for room
 	enableDragResize(el, 'room', room);
-
-	// highlight if selected
-	if(selectedRoomId === room.id) el.style.borderColor = 'rgba(0,0,255,0.9)';
-	else el.style.borderColor = 'rgba(0,0,255,0.6)';
-
-	// Snapzones inside this room
-	room.snapzones.forEach(snapzone => {
-		const szEl = createSnapzoneElement(snapzone, room);
-		el.appendChild(szEl);
-	});
-
-	el.addEventListener('click', e => {
-		e.stopPropagation();
-		if(selectedRoomId !== room.id) {
-			selectedRoomId = room.id;
-			drawSnapzoneBtn.disabled = false;
-			snapzoneTypeSelect.disabled = false;
-			renderAll();
-		}
-	});
 
 	return el;
 }
-function createSnapzoneElement(snapzone, room) {
-	const el = createElement('div', 'snapzone');
+function createSnapzoneElement(snapzone) {
+	const el = createElement('div', 'snapzone', container);
 	el.style.left = snapzone.x + 'px';
 	el.style.top = snapzone.y + 'px';
 	el.style.width = snapzone.width + 'px';
@@ -180,7 +135,6 @@ function createSnapzoneElement(snapzone, room) {
 	el.style.backgroundColor = SNAPZONE_COLORS[snapzone.type] || 'rgba(0,0,0,0.1)';
 	el.dataset.id = snapzone.id;
 
-	// Type selector (editable)
 	const typeSelect = createElement('select', 'type-select', el);
 	['laptop','stuhl','tisch'].forEach(type => {
 		const opt = document.createElement('option');
@@ -196,30 +150,23 @@ function createSnapzoneElement(snapzone, room) {
 		updateOutput();
 	});
 
-	// Delete button
 	const delBtn = createElement('div', 'delete-btn', el);
 	delBtn.textContent = '×';
 	delBtn.title = 'Snapzone löschen';
 	delBtn.addEventListener('click', e => {
 		e.stopPropagation();
 		if(confirmDelete(`Snapzone "${snapzone.type}" löschen?`)) {
-			const idx = room.snapzones.findIndex(sz => sz.id === snapzone.id);
-			if(idx !== -1) {
-				room.snapzones.splice(idx,1);
-				updateOutput();
-				renderAll();
-			}
+			snapzones = snapzones.filter(sz => sz.id !== snapzone.id);
+			updateOutput();
+			renderAll();
 		}
 	});
 
-	// Drag & Resize for snapzone (relative to room container)
-	enableDragResize(el, 'snapzone', snapzone, room);
+	enableDragResize(el, 'snapzone', snapzone);
 
 	return el;
 }
-
-function enableDragResize(el, type, obj, parentRoom=null) {
-	// Drag logic
+function enableDragResize(el, type, obj) {
 	el.addEventListener('mousedown', e => {
 		if(e.target.classList.contains('delete-btn') || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 		e.preventDefault();
@@ -235,7 +182,6 @@ function enableDragResize(el, type, obj, parentRoom=null) {
 			origWidth: obj.width,
 			origHeight: obj.height,
 			edge: getResizeEdge(e, rect),
-			parentRoom,
 		};
 		if(dragData.edge) {
 			resizeData = dragData;
@@ -256,7 +202,6 @@ function getResizeEdge(e, rect) {
 	else if(y < margin) edge += 't';
 	return edge || null;
 }
-
 window.addEventListener('mouseup', e => {
 	if(dragData || resizeData) {
 		dragData = null;
@@ -264,227 +209,101 @@ window.addEventListener('mouseup', e => {
 		updateOutput();
 	}
 });
-
 window.addEventListener('mousemove', e => {
 	if(dragData) {
 		e.preventDefault();
 		const dx = e.clientX - dragData.startX;
 		const dy = e.clientY - dragData.startY;
-
-		if(dragData.type === 'room') {
-			// Move room
-			dragData.element.style.left = dragData.origX + dx + 'px';
-			dragData.element.style.top = dragData.origY + dy + 'px';
-			dragData.element.style.width = dragData.origWidth + 'px';
-			dragData.element.style.height = dragData.origHeight + 'px';
-
-			// Update model
-			const room = rooms.find(r => r.id === dragData.id);
-			if(room) {
-				room.x = dragData.origX + dx;
-				room.y = dragData.origY + dy;
-			}
-		} else if(dragData.type === 'snapzone') {
-			// Move snapzone relative to parent room
-			const room = dragData.parentRoom;
-			let newX = dragData.origX + dx;
-			let newY = dragData.origY + dy;
-			// Clamp inside room
-			newX = Math.max(0, Math.min(newX, room.width - dragData.element.offsetWidth));
-			newY = Math.max(0, Math.min(newY, room.height - dragData.element.offsetHeight));
-			dragData.element.style.left = newX + 'px';
-			dragData.element.style.top = newY + 'px';
-
-			const snapzone = room.snapzones.find(sz => sz.id === dragData.id);
-			if(snapzone) {
-				snapzone.x = newX;
-				snapzone.y = newY;
-			}
-		}
+		const obj = (dragData.type === 'room' ? rooms : snapzones).find(o => o.id === dragData.id);
+		if(!obj) return;
+		obj.x = Math.max(0, dragData.origX + dx);
+		obj.y = Math.max(0, dragData.origY + dy);
+		renderAll();
+		updateOutput();
 	} else if(resizeData) {
 		e.preventDefault();
 		const dx = e.clientX - resizeData.startX;
 		const dy = e.clientY - resizeData.startY;
-
-		if(resizeData.type === 'room') {
-			const room = rooms.find(r => r.id === resizeData.id);
-			if(!room) return;
-			let x = room.x;
-			let y = room.y;
-			let w = resizeData.origWidth;
-			let h = resizeData.origHeight;
-
-			if(resizeData.edge.includes('r')) w = Math.max(20, resizeData.origWidth + dx);
-			if(resizeData.edge.includes('b')) h = Math.max(20, resizeData.origHeight + dy);
-			if(resizeData.edge.includes('l')) {
-				w = Math.max(20, resizeData.origWidth - dx);
-				x = resizeData.origX + dx;
-			}
-			if(resizeData.edge.includes('t')) {
-				h = Math.max(20, resizeData.origHeight - dy);
-				y = resizeData.origY + dy;
-			}
-
-			// Clamp to container boundaries
-			x = Math.max(0, x);
-			y = Math.max(0, y);
-			if(x + w > container.clientWidth) w = container.clientWidth - x;
-			if(y + h > container.clientHeight) h = container.clientHeight - y;
-
-			room.x = x;
-			room.y = y;
-			room.width = w;
-			room.height = h;
-			renderAll();
-			updateOutput();
-
-		} else if(resizeData.type === 'snapzone') {
-			const room = resizeData.parentRoom;
-			const snapzone = room.snapzones.find(sz => sz.id === resizeData.id);
-			if(!snapzone) return;
-			let x = snapzone.x;
-			let y = snapzone.y;
-			let w = resizeData.origWidth;
-			let h = resizeData.origHeight;
-
-			if(resizeData.edge.includes('r')) w = Math.max(10, resizeData.origWidth + dx);
-			if(resizeData.edge.includes('b')) h = Math.max(10, resizeData.origHeight + dy);
-			if(resizeData.edge.includes('l')) {
-				w = Math.max(10, resizeData.origWidth - dx);
-				x = resizeData.origX + dx;
-			}
-			if(resizeData.edge.includes('t')) {
-				h = Math.max(10, resizeData.origHeight - dy);
-				y = resizeData.origY + dy;
-			}
-
-			// Clamp inside room
-			x = Math.max(0, x);
-			y = Math.max(0, y);
-			if(x + w > room.width) w = room.width - x;
-			if(y + h > room.height) h = room.height - y;
-
-			snapzone.x = x;
-			snapzone.y = y;
-			snapzone.width = w;
-			snapzone.height = h;
-			renderAll();
-			updateOutput();
-		}
+		const obj = (resizeData.type === 'room' ? rooms : snapzones).find(o => o.id === resizeData.id);
+		if(!obj) return;
+		let x = obj.x, y = obj.y, w = resizeData.origWidth, h = resizeData.origHeight;
+		if(resizeData.edge.includes('r')) w = Math.max(10, resizeData.origWidth + dx);
+		if(resizeData.edge.includes('b')) h = Math.max(10, resizeData.origHeight + dy);
+		if(resizeData.edge.includes('l')) { w = Math.max(10, resizeData.origWidth - dx); x = resizeData.origX + dx; }
+		if(resizeData.edge.includes('t')) { h = Math.max(10, resizeData.origHeight - dy); y = resizeData.origY + dy; }
+		obj.x = Math.max(0, x);
+		obj.y = Math.max(0, y);
+		obj.width = w;
+		obj.height = h;
+		renderAll();
+		updateOutput();
 	}
 });
 
-// Drawing new rooms and snapzones
 container.addEventListener('mousedown', e => {
 	if(currentMode === 'draw-room') {
 		const pos = getMousePos(e);
 		drawingRoom = {x: pos.x, y: pos.y, width: 0, height: 0};
-		// Temporarily create a visual rect
 		drawTempRect('room', drawingRoom);
 	} else if(currentMode === 'draw-snapzone') {
-		if(selectedRoomId === null) return;
-		const room = rooms.find(r => r.id === selectedRoomId);
 		const pos = getMousePos(e);
-		// snapzone coords relative to room:
-		const relX = pos.x - room.x;
-		const relY = pos.y - room.y;
-		if(relX < 0 || relY < 0 || relX > room.width || relY > room.height) return; // outside room
-
-		drawingSnapzone = {x: relX, y: relY, width: 0, height: 0, type: snapzoneTypeSelect.value};
-		drawTempRect('snapzone', drawingSnapzone, room);
+		drawingSnapzone = {x: pos.x, y: pos.y, width: 0, height: 0, type: snapzoneTypeSelect.value};
+		drawTempRect('snapzone', drawingSnapzone);
 	}
 });
 container.addEventListener('mousemove', e => {
+	const pos = getMousePos(e);
 	if(currentMode === 'draw-room' && drawingRoom) {
-		const pos = getMousePos(e);
 		drawingRoom.width = Math.max(1, pos.x - drawingRoom.x);
 		drawingRoom.height = Math.max(1, pos.y - drawingRoom.y);
 		drawTempRect('room', drawingRoom);
 	} else if(currentMode === 'draw-snapzone' && drawingSnapzone) {
-		const room = rooms.find(r => r.id === selectedRoomId);
-		const pos = getMousePos(e);
-		let w = pos.x - room.x - drawingSnapzone.x;
-		let h = pos.y - room.y - drawingSnapzone.y;
-		w = Math.max(1, w);
-		h = Math.max(1, h);
-
-		// Clamp inside room
-		if(drawingSnapzone.x + w > room.width) w = room.width - drawingSnapzone.x;
-		if(drawingSnapzone.y + h > room.height) h = room.height - drawingSnapzone.y;
-
-		drawingSnapzone.width = w;
-		drawingSnapzone.height = h;
-		drawTempRect('snapzone', drawingSnapzone, room);
+		drawingSnapzone.width = Math.max(1, pos.x - drawingSnapzone.x);
+		drawingSnapzone.height = Math.max(1, pos.y - drawingSnapzone.y);
+		drawTempRect('snapzone', drawingSnapzone);
 	}
 });
 window.addEventListener('mouseup', e => {
 	if(currentMode === 'draw-room' && drawingRoom) {
-		// Finalize room
 		if(drawingRoom.width > 5 && drawingRoom.height > 5) {
-			const newRoom = {
+			rooms.push({
 				id: 'r' + roomCounter++,
 				name: '',
 				x: drawingRoom.x,
 				y: drawingRoom.y,
 				width: drawingRoom.width,
-				height: drawingRoom.height,
-				snapzones: []
-			};
-			rooms.push(newRoom);
-			selectedRoomId = newRoom.id;
-			drawSnapzoneBtn.disabled = false;
-			snapzoneTypeSelect.disabled = false;
+				height: drawingRoom.height
+			});
 		}
 		drawingRoom = null;
-		currentMode = null;
-		drawRoomBtn.disabled = false;
-		drawSnapzoneBtn.disabled = selectedRoomId === null;
-		snapzoneTypeSelect.disabled = selectedRoomId === null;
-		cancelDrawBtn.disabled = true;
-		removeTempRects();
-		renderAll();
-		updateOutput();
+		cancelDraw();
 	} else if(currentMode === 'draw-snapzone' && drawingSnapzone) {
-		// Finalize snapzone inside selected room
 		if(drawingSnapzone.width > 5 && drawingSnapzone.height > 5) {
-			const room = rooms.find(r => r.id === selectedRoomId);
-			if(room) {
-				room.snapzones.push({
-					id: 'sz' + snapzoneCounter++,
-					type: drawingSnapzone.type,
-					x: drawingSnapzone.x,
-					y: drawingSnapzone.y,
-					width: drawingSnapzone.width,
-					height: drawingSnapzone.height
-				});
-			}
+			snapzones.push({
+				id: 'sz' + snapzoneCounter++,
+				type: drawingSnapzone.type,
+				x: drawingSnapzone.x,
+				y: drawingSnapzone.y,
+				width: drawingSnapzone.width,
+				height: drawingSnapzone.height
+			});
 		}
 		drawingSnapzone = null;
-		currentMode = null;
-		drawRoomBtn.disabled = false;
-		drawSnapzoneBtn.disabled = selectedRoomId === null;
-		snapzoneTypeSelect.disabled = selectedRoomId === null;
-		cancelDrawBtn.disabled = true;
-		removeTempRects();
-		renderAll();
-		updateOutput();
+		cancelDraw();
 	}
 });
 
-function drawTempRect(type, rect, parentRoom=null) {
+function drawTempRect(type, rect) {
 	removeTempRects();
-	const temp = createElement('div', type === 'room' ? 'room' : 'snapzone', parentRoom ? null : container);
-	if(parentRoom) parentRoom.appendChild(temp);
-
+	const temp = createElement('div', type === 'room' ? 'room' : 'snapzone', container);
 	temp.style.left = rect.x + 'px';
 	temp.style.top = rect.y + 'px';
 	temp.style.width = rect.width + 'px';
 	temp.style.height = rect.height + 'px';
-
 	if(type === 'room') {
 		temp.style.borderColor = 'rgba(0,0,255,0.8)';
 		temp.style.backgroundColor = 'rgba(0,0,255,0.3)';
-	} else if(type === 'snapzone') {
+	} else {
 		temp.style.borderColor = SNAPZONE_BORDER_COLORS[rect.type] || 'gray';
 		temp.style.backgroundColor = SNAPZONE_COLORS[rect.type] || 'rgba(0,0,0,0.1)';
 	}
@@ -496,28 +315,14 @@ function removeTempRects() {
 		if(el) el.remove();
 	});
 }
-
 function renderAll() {
 	container.innerHTML = '';
-	rooms.forEach(room => {
-		const el = createRoomElement(room);
-		container.appendChild(el);
-	});
+	rooms.forEach(room => container.appendChild(createRoomElement(room)));
+	snapzones.forEach(sz => container.appendChild(createSnapzoneElement(sz)));
 	updateOutput();
 }
 
-// Initial
 drawRoomBtn.addEventListener('click', startDrawRoom);
 drawSnapzoneBtn.addEventListener('click', startDrawSnapzone);
 cancelDrawBtn.addEventListener('click', cancelDraw);
-
-// Deselect room on container click
-container.addEventListener('click', e => {
-	selectedRoomId = null;
-	drawSnapzoneBtn.disabled = true;
-	snapzoneTypeSelect.disabled = true;
-	renderAll();
-});
-
 renderAll();
-updateOutput();
