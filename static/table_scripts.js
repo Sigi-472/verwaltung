@@ -1,3 +1,5 @@
+const log = console.log;
+
 // Toastr Optionen (deine bestehende Konfiguration)
 toastr.options = {
 	"closeButton": true,
@@ -18,23 +20,45 @@ toastr.options = {
 
 // Funktion, die prüft, ob mindestens ein Feld in der neuen Zeile gefüllt ist
 function checkNewEntryInputs() {
-	const inputs = $(".new-entry input, .new-entry select");
-	let isAnyFilled = false;
+        const inputs = $(".new-entry input, .new-entry select");
+        let isAnyFilled = false;
 
-	inputs.each(function() {
-		// Wert holen, trimmen (für Strings)
-		let value = $(this).val();
-		if (typeof value === "string") {
-			value = value.trim();
-		}
-		// Falls Wert nicht leer, dann Button aktivieren
-		if (value !== "" && value !== null && value !== undefined) {
-			isAnyFilled = true;
-			return false; // Schleife abbrechen, da erfüllt
-		}
-	});
+        inputs.each(function() {
+                const tag = this.tagName.toUpperCase();
+                let value = $(this).val();
 
-	$(".save-new").prop("disabled", !isAnyFilled);
+                if (tag === "SELECT") {
+                        // Für Mehrfachauswahl-Selects
+                        if (Array.isArray(value) && value.length > 0) {
+                                isAnyFilled = true;
+                                return false;
+                        }
+
+                        // Für normale Selects: Index > 0 oder gültiger nicht-leerer Wert
+                        if (this.selectedIndex > 0) {
+                                isAnyFilled = true;
+                                return false;
+                        }
+
+                        // Alternativ: Wenn value gesetzt ist (und keine leere Option existiert)
+                        if (value !== "" && value !== null && value !== undefined) {
+                                isAnyFilled = true;
+                                return false;
+                        }
+
+                } else if (tag === "INPUT") {
+                        if (typeof value === "string") {
+                                value = value.trim();
+                        }
+
+                        if (value !== "" && value !== null && value !== undefined) {
+                                isAnyFilled = true;
+                                return false;
+                        }
+                }
+        });
+
+        $(".save-new").prop("disabled", !isAnyFilled);
 }
 
 // Beim Laden der Seite Button deaktivieren
@@ -42,10 +66,11 @@ $(document).ready(function() {
 	// Button per default deaktivieren
 	$(".save-new").prop("disabled", true);
 
-	// Bei Änderung der Inputs prüfen
 	$(".new-entry input, .new-entry select").on("input change", function() {
 		checkNewEntryInputs();
 	});
+
+	checkNewEntryInputs();
 });
 
 // Bestehender Update-Code für vorhandene Einträge (unverändert)
