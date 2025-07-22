@@ -2,3 +2,5 @@ test_env
 database.db
 __pycache__/
 databases.db
+test.db
+testenv/
