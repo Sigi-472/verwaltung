@@ -52,28 +52,26 @@ $(function() {
     $(".cell-input").filter(function() {
         return $(this).closest(".new-entry").length === 0;
     }).on("change", function() {
-        const input = $(this);
-        const name = input.attr("name");
+        var input = $(this);
+        var name = input.attr("name");
 
-        // Prüfe, ob ein Autocomplete-Wert gewählt wurde
-        const dataId = input.attr("data-id");
-        const value = (typeof dataId !== "undefined" && dataId !== "") ? dataId : input.val();
+        // Wert aus data-id, wenn vorhanden, sonst aus sichtbarem Text
+        var dataId = input.attr("data-id");
+        var value = (typeof dataId !== "undefined" && dataId !== "") ? dataId : input.val();
 
-        $.post("/update/{{ table_name }}", { name, value }, function(resp) {
+        $.post("/update/{{ table_name }}", { name: name, value: value }, function(resp) {
             if (!resp.success) {
                 toastr.error("Fehler beim Updaten: " + resp.error);
             } else {
                 toastr.success("Eintrag geupdatet");
+                // Nur nach Erfolg data-id entfernen, damit nicht verloren geht
+                input.removeAttr("data-id");
             }
         }, "json").fail(function() {
             toastr.error("Netzwerkfehler beim Updaten");
         });
-
-        // Leere data-id nach Versand, um versehentliche Wiederverwendung zu vermeiden
-        input.removeAttr("data-id");
     });
 
-    // Initialisiere Autocomplete
     $(".cell-input").each(function() {
         var input = $(this);
         var data = input.data("autocomplete");
@@ -84,9 +82,12 @@ $(function() {
                 delay: 0,
                 autoFocus: true,
                 select: function(event, ui) {
-                    input.val(ui.item.label);         // Zeige den Namen im Feld
-                    input.attr("data-id", ui.item.value); // Speichere die ID
-                    input.trigger("change");          // Löst sofort den Speichervorgang aus
+                    // sichtbarer Text bleibt ui.item.label
+                    input.val(ui.item.label);
+                    // ID speichern für spätere Übertragung
+                    input.attr("data-id", ui.item.value);
+                    // Trigger für automatisches Speichern (change-Event)
+                    input.trigger("change");
                     return false;
                 }
             }).focus(function() {
