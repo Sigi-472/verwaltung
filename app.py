@@ -153,6 +153,7 @@ def table_view(table_name):
         (get_input(col), column_label(table_name, col.name)) for col in columns
     ]
 
+    # CSS und JS separat halten für bessere Übersichtlichkeit
     with open("static/table_styles.css") as f:
         style_css = f.read()
     with open("static/table_scripts.js") as f:
