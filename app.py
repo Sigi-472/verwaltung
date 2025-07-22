@@ -43,7 +43,7 @@ try:
     from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker
-    from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom
+    from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom, Inventory, Object
     from markupsafe import escape
     import html
     from sqlalchemy import Date, DateTime
@@ -454,6 +454,97 @@ def aggregate_transponder_view():
 
     except Exception as e:
         app.logger.error(f"Fehler beim Laden der Transponder-Aggregatsansicht: {e}")
+        return render_template("error.html", message="Fehler beim Laden der Daten.")
+
+from flask import render_template, request, url_for
+from sqlalchemy.orm import joinedload
+import html
+
+@app.route("/aggregate/inventory")
+def aggregate_inventory_view():
+    session = Session()
+    show_only_unreturned = request.args.get("unreturned") == "1"
+
+    try:
+        # Grundquery mit sinnvollen Joins für relevante Beziehungen
+        query = session.query(Inventory) \
+            .options(
+                joinedload(Inventory.owner),
+                joinedload(Inventory.issuer),
+                joinedload(Inventory.object).joinedload(Object.category),
+                joinedload(Inventory.kostenstelle),
+                joinedload(Inventory.abteilung),
+                joinedload(Inventory.professorship),
+                joinedload(Inventory.room)
+            )
+
+
+        # Filter für nicht zurückgegebene Inventarobjekte (return_date ist None)
+        if show_only_unreturned:
+            query = query.filter(Inventory.return_date.is_(None))
+
+        inventory_list = query.all()
+
+        rows = []
+        for inv in inventory_list:
+            # Hilfsfunktionen zum sicheren Zugriff auf Fremdobjekte
+            def person_name(p):
+                if p:
+                    return f"{p.first_name} {p.last_name}"
+                else:
+                    return "Unbekannt"
+
+            def category_name(c):
+                return c.name if c else "-"
+
+            def kostenstelle_name(k):
+                return k.name if k else "-"
+
+            def abteilung_name(a):
+                return a.name if a else "-"
+
+            def professorship_name(pf):
+                return pf.name if pf else "-"
+
+            def room_name(r):
+                if r:
+                    floor_str = f"{r.floor}.OG" if r.floor is not None else "?"
+                    return f"{r.name} ({floor_str})"
+                return "-"
+
+            row = {
+                "ID": inv.id,
+                "Seriennummer": inv.serial_number or "-",
+                "Objekt": inv.object.name if inv.object else "-",
+                "Kategorie": category_name(inv.object.category) if inv.object else "-",
+                "Anlagennummer": inv.anlagennummer or "-",
+                "Ausgegeben an": person_name(inv.owner),
+                "Ausgegeben durch": person_name(inv.issuer),
+                "Ausgabedatum": inv.got_date.isoformat() if inv.got_date else "-",
+                "Rückgabedatum": inv.return_date.isoformat() if inv.return_date else "Nicht zurückgegeben",
+                "Raum": room_name(inv.room),
+                "Abteilung": abteilung_name(inv.abteilung),
+                "Professur": professorship_name(inv.professorship),
+                "Kostenstelle": kostenstelle_name(inv.kostenstelle),
+                "Preis": f"{inv.price:.2f} €" if inv.price is not None else "-",
+                "Kommentar": inv.comment or "-"
+            }
+            rows.append(row)
+
+        column_labels = list(rows[0].keys()) if rows else []
+        row_data = [[html.escape(str(row[col])) for col in column_labels] for row in rows]
+
+        return render_template(
+            "aggregate_view.html",
+            title="Inventarübersicht",
+            column_labels=column_labels,
+            row_data=row_data,
+            filters={"Nur nicht zurückgegebene anzeigen": show_only_unreturned},
+            toggle_url=url_for("aggregate_inventory_view", unreturned="0" if show_only_unreturned else "1")
+        )
+
+    except Exception as e:
+        app.logger.error(f"Fehler beim Laden der Inventar-Aggregatsansicht: {e}")
         return render_template("error.html", message="Fehler beim Laden der Daten.")
 
 if __name__ == "__main__":

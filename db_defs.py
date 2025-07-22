@@ -161,3 +161,12 @@ class Inventory(Base):
     raum_id = Column(Integer, ForeignKey("room.id", ondelete="SET NULL"))
     professorship_id = Column(Integer, ForeignKey("professorship.id", ondelete="SET NULL"))
     abteilung_id = Column(Integer, ForeignKey("abteilung.id", ondelete="SET NULL"))
+
+    owner = relationship("Person", foreign_keys=[owner_id], lazy="joined")
+    issuer = relationship("Person", foreign_keys=[issuer_id], lazy="joined")
+    object = relationship("Object", lazy="joined")
+    kostenstelle = relationship("Kostenstelle", lazy="joined")
+    abteilung = relationship("Abteilung", lazy="joined")
+    professorship = relationship("Professorship", lazy="joined")
+    room = relationship("Room", foreign_keys=[raum_id], lazy="joined")
+
