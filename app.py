@@ -79,6 +79,11 @@ FK_DISPLAY_COLUMNS = {
     "person": ["title", "first_name", "last_name"]
 }
 
+EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
+
+def is_valid_email(email):
+    return bool(EMAIL_REGEX.match(email.strip()))
+
 def column_label(table, col):
     return COLUMN_LABELS.get(f"{table}.{col}", col.replace("_id", "").replace("_", " ").capitalize())
 
