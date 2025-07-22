@@ -303,6 +303,10 @@ def add_entry(table_name):
         return jsonify(success=False, error="Tabelle nicht gefunden")
     try:
         obj = cls()
+
+        for key, value in request.form.items():
+            print(f"{key}: {value}")
+
         for key, val in request.form.items():
             _, _, field = key.partition(f"{table_name}_new_")
             if not hasattr(obj, field):
