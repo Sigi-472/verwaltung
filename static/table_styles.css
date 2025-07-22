@@ -66,19 +66,34 @@ input.cell-input:focus, select.cell-input:focus {
 }
 
 button.save-new {
-		background-color: #27ae60;
-		border: none;
-		color: white;
-		padding: 8px 14px;
-		cursor: pointer;
-		border-radius: 4px;
-		font-weight: 700;
-		font-size: 1rem;
-		transition: background-color 0.3s ease;
-		width: 100%;
+    background-color: #27ae60;
+    border: none;
+    color: white;
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+    width: 100%;
 }
+
 button.save-new:hover {
-		background-color: #219150;
+    background-color: #219150;
+}
+
+/* Disabled Zustand */
+button.save-new:disabled {
+    background-color: #95a5a6; /* Hellgrau */
+    cursor: not-allowed;
+    color: #ecf0f1; /* Heller Text */
+    opacity: 0.7;
+    pointer-events: none; /* Deaktiviert alle Pointer-Events */
+}
+
+/* Hover deaktivieren, wenn disabled */
+button.save-new:disabled:hover {
+    background-color: #95a5a6; /* bleibt grau */
 }
 
 @media (max-width: 768px) {

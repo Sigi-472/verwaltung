@@ -36,7 +36,7 @@
                 {% for input_html in new_entry_inputs %}
                     <td data-label="{{ input_html[1]|e }}">{{ input_html[0]|safe }}</td>
                 {% endfor %}
-                <td><button class="save-new" title="Neuen Eintrag speichern">Speichern</button></td>
+                <td><button class="save-new" disabled title="Neuen Eintrag speichern">Speichern</button></td>
             </tr>
         </tbody>
     </table>
