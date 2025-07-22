@@ -23,11 +23,13 @@
         </thead>
         <tbody>
             {% for row_inputs in row_html %}
-                <tr>
+	        <tr data-id="{{ row_inputs[0][0].split('name="')[1].split('"')[0].split('_')[1] }}">
                     {% for input_html in row_inputs %}
                         <td data-label="{{ input_html[1]|e }}">{{ input_html[0]|safe }}</td>
                     {% endfor %}
-                    <td></td>
+                    <td>
+                        <button class="delete-entry" title="Eintrag löschen">Löschen</button>
+                    </td>
                 </tr>
             {% endfor %}
             <tr class="new-entry">

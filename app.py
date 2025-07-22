@@ -234,5 +234,38 @@ def update_entry(table_name):
         session.rollback()
         return jsonify(success=False, error=str(e))
 
+@app.route("/delete/<table_name>", methods=["POST"])
+def delete_entry(table_name):
+    session = Session()
+    cls = next((c for c in Base.__subclasses__() if c.__tablename__ == table_name), None)
+    if not cls:
+        return jsonify(success=False, error="Tabelle nicht gefunden")
+
+    try:
+        json_data = request.get_json()
+        print("Empfangene JSON-Daten:", json_data)
+
+        if not json_data or "id" not in json_data:
+            return jsonify(success=False, error="Keine ID angegeben")
+
+        row_id = json_data["id"]
+        if not isinstance(row_id, int):
+            try:
+                row_id = int(row_id)
+            except ValueError:
+                return jsonify(success=False, error="Ungültige ID")
+
+        obj = session.query(cls).get(row_id)
+        if not obj:
+            return jsonify(success=False, error="Datensatz nicht gefunden")
+
+        session.delete(obj)
+        session.commit()
+        return jsonify(success=True)
+
+    except Exception as e:
+        session.rollback()
+        return jsonify(success=False, error=str(e))
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

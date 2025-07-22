@@ -119,3 +119,22 @@ button.save-new:hover {
 				width: 100%;
 		}
 }
+
+button.delete-entry {
+	background-color: #e74c3c; /* kräftiges Rot */
+	color: white;
+	border: none;
+	padding: 5px 10px;
+	font-size: 0.9em;
+	cursor: pointer;
+	border-radius: 3px;
+	transition: background-color 0.3s ease;
+}
+
+button.delete-entry:hover {
+	background-color: #c0392b; /* dunkleres Rot beim Hover */
+}
+
+button.delete-entry:active {
+	background-color: #992d22; /* noch dunkler beim Klicken */
+}
