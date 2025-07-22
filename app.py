@@ -151,27 +151,29 @@ def generate_input_field(col, value=None, row_id=None, fk_options=None, table_na
         val = "" if value is None else html.escape(str(value))
 
         if fk_options and col.name in fk_options:
+            options_list = fk_options[col.name]
+            if not options_list:
+                return "", False
             options_html = ""
-            for opt_value, opt_label in fk_options[col.name]:
+            for opt_value, opt_label in options_list:
                 selected = "selected" if str(opt_value) == val else ""
                 options_html += f'<option value="{html.escape(str(opt_value))}" {selected}>{html.escape(opt_label)}</option>'
-            return f'<select name="{html.escape(input_name)}" class="cell-input">{options_html}</select>'
+            return f'<select name="{html.escape(input_name)}" class="cell-input">{options_html}</select>', True
 
         col_type_str = str(col.type).upper()
         if "INTEGER" in col_type_str:
-            return f'<input type="number" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+            return f'<input type="number" name="{html.escape(input_name)}" value="{val}" class="cell-input">', True
         if "FLOAT" in col_type_str or "DECIMAL" in col_type_str or "NUMERIC" in col_type_str:
-            return f'<input type="number" step="any" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+            return f'<input type="number" step="any" name="{html.escape(input_name)}" value="{val}" class="cell-input">', True
         if "TEXT" in col_type_str or "VARCHAR" in col_type_str or "CHAR" in col_type_str:
-            return f'<input type="text" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+            return f'<input type="text" name="{html.escape(input_name)}" value="{val}" class="cell-input">', True
         if "DATE" in col_type_str:
-            return f'<input type="date" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
-        # Fallback Input
-        return f'<input type="text" name="{html.escape(input_name)}" value="{val}" class="cell-input">'
+            return f'<input type="date" name="{html.escape(input_name)}" value="{val}" class="cell-input">', True
+
+        return f'<input type="text" name="{html.escape(input_name)}" value="{val}" class="cell-input">', True
     except Exception as e:
         app.logger.error(f"Fehler beim Generieren des Input-Feldes für Spalte {col.name}: {e}")
-        # Rückgabe eines leeren Inputs bei Fehlern, damit Seite nicht komplett bricht
-        return f'<input type="text" name="{html.escape(input_name)}" value="" class="cell-input">'
+        return f'<input type="text" name="{html.escape(input_name)}" value="" class="cell-input">', True
 
 def get_column_label(table_name, column_name):
     # Hier deine Logik für die Label-Erzeugung
@@ -195,10 +197,10 @@ def prepare_table_data(session, cls, table_name):
 
     row_html = []
     row_ids = []
+    table_has_missing_inputs = False
 
     for row in rows:
         row_inputs = []
-        # Versuche, die ID zu holen. Falls 'id' nicht existiert, nimm erste Spalte als Ersatz
         try:
             row_id = getattr(row, "id", None)
             if row_id is None:
@@ -207,12 +209,14 @@ def prepare_table_data(session, cls, table_name):
         except Exception as e:
             app.logger.error(f"Fehler beim Zugriff auf ID der Zeile: {e}")
             row_id = None
+
         row_ids.append(row_id)
 
         for col in columns:
             col_name = col.name
             if col_name == "return":
                 col_name = "return_"
+
             try:
                 value = getattr(row, col_name)
             except AttributeError:
@@ -223,16 +227,19 @@ def prepare_table_data(session, cls, table_name):
 
             label = get_column_label(table_name, col.name)
             try:
-                input_html = generate_input_field(
+                input_html, valid = generate_input_field(
                     col,
                     value,
                     row_id=row_id,
                     fk_options=fk_options,
                     table_name=table_name
                 )
+                if not valid:
+                    table_has_missing_inputs = True
             except Exception as e:
                 app.logger.error(f"Fehler bei der Generierung des Input-Felds für {col.name}: {e}")
-                input_html = f'<input value="Error">'
+                input_html = '<input value="Error">'
+                valid = True
 
             row_inputs.append((input_html, label))
         row_html.append(row_inputs)
@@ -240,11 +247,14 @@ def prepare_table_data(session, cls, table_name):
     new_entry_inputs = []
     for col in columns:
         try:
-            input_html = generate_input_field(
+            input_html, valid = generate_input_field(
                 col,
                 fk_options=fk_options,
                 table_name=table_name
             )
+            if not valid:
+                print(col)
+                table_has_missing_inputs = True
         except Exception as e:
             app.logger.error(f"Fehler bei der Generierung des neuen Input-Felds für {col.name}: {e}")
             input_html = '<input value="Error">'
@@ -253,8 +263,7 @@ def prepare_table_data(session, cls, table_name):
 
     column_labels = [get_column_label(table_name, col.name) for col in columns]
 
-    # Jetzt die IDs mit zurückgeben
-    return column_labels, row_html, new_entry_inputs, row_ids
+    return column_labels, row_html, new_entry_inputs, row_ids, table_has_missing_inputs
 
 def load_static_file(path):
     try:
@@ -271,20 +280,29 @@ def table_view(table_name):
     if cls is None:
         abort(404, description="Tabelle nicht gefunden")
 
-    column_labels, row_html, new_entry_inputs, row_ids = prepare_table_data(session, cls, table_name)
+    column_labels, row_html, new_entry_inputs, row_ids, table_has_missing_inputs = prepare_table_data(session, cls, table_name)
+
     style_css = load_static_file("static/table_styles.css")
     javascript_code = load_static_file("static/table_scripts.js").replace("{{ table_name }}", table_name)
 
     row_data = list(zip(row_html, row_ids))
 
+    missing_data_messages = []
+    if table_has_missing_inputs:
+        link = url_for("table_view", table_name=table_name)
+        missing_data_messages.append(
+            f'<div class="warning">⚠️ Fehlende Eingabeoptionen für Tabelle <a href="{link}">{html.escape(table_name)}</a></div>'
+        )
+
     return render_template(
         "table_view.html",
         table_name=table_name,
         column_labels=column_labels,
-        row_data=row_data,  # statt row_html + row_ids
+        row_data=row_data,
         new_entry_inputs=new_entry_inputs,
         style_css=style_css,
         javascript_code=javascript_code,
+        missing_data_messages=missing_data_messages
     )
 
 @app.route("/add/<table_name>", methods=["POST"])

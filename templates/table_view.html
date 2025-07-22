@@ -12,6 +12,16 @@
 <body>
     <h2>{{ table_name|capitalize }}</h2>
     <a href="/">← zurück</a>
+
+{% if missing_data_messages %}
+    <div class="missing-warnings">
+        {% for msg in missing_data_messages %}
+            {{ msg|safe }}
+        {% endfor %}
+    </div>
+
+{% else %}
+
     <table class="edit-table">
         <thead>
             <tr>
@@ -40,6 +50,7 @@
             </tr>
         </tbody>
     </table>
+{% endif %}
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
