@@ -11,7 +11,6 @@ except ModuleNotFoundError:
     print("venv not found. Is python3-venv installed?")
     sys.exit(1)
 
-
 from pathlib import Path
 
 VENV_PATH = Path.home() / ".verwaltung_venv"
@@ -82,10 +81,8 @@ FK_DISPLAY_COLUMNS = {
     "person": "last_name",
 }
 
-
 def column_label(table, col):
     return COLUMN_LABELS.get(f"{table}.{col}", col.replace("_id", "").replace("_", " ").capitalize())
-
 
 from flask import render_template
 
@@ -97,9 +94,6 @@ def index():
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(app.static_folder, 'favicon.ico')
-
-
-
 
 @app.route("/table/<table_name>")
 def table_view(table_name):
@@ -175,7 +169,6 @@ def table_view(table_name):
         javascript_code=javascript_code
     )
 
-
 @app.route("/add/<table_name>", methods=["POST"])
 def add_entry(table_name):
     session = Session()
@@ -204,7 +197,6 @@ def add_entry(table_name):
     except Exception as e:
         session.rollback()
         return jsonify(success=False, error=str(e))
-
 
 @app.route("/update/<table_name>", methods=["POST"])
 def update_entry(table_name):
