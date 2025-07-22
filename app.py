@@ -287,7 +287,7 @@ def table_view(table_name):
 
     column_labels, row_html, new_entry_inputs, row_ids, table_has_missing_inputs = prepare_table_data(session, cls, table_name)
 
-    style_css = load_static_file("static/table_styles.css")
+    style_css = load_static_file("static/style.css")
     javascript_code = load_static_file("static/table_scripts.js").replace("{{ table_name }}", table_name)
 
     row_data = list(zip(row_html, row_ids))
