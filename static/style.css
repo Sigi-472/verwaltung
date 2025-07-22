@@ -4,21 +4,44 @@ body {
 	background: #f9f9f9;
 	color: #333;
 }
+
 h1 {
 	margin-bottom: 1em;
 }
+
 ul {
 	list-style: none;
 	padding-left: 0;
 }
+
 li {
 	margin-bottom: 0.5em;
 }
+
 a {
 	text-decoration: none;
 	color: #007bff;
 	font-weight: 600;
 }
+
 a:hover {
 	text-decoration: underline;
+}
+
+.contact-row {
+	margin-bottom: 1rem;
+	padding: 1rem;
+	border: 1px solid #ddd;
+	border-radius: 5px;
+}
+
+
+
+
+.error {
+	background: #fffbfb;
+	color: #aa0000;
+}
+.error_a {
+	color: #0066cc;
 }
