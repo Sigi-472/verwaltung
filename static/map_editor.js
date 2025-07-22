@@ -210,29 +210,7 @@ window.addEventListener('mouseup', e => {
 	}
 });
 
-container.addEventListener('mousedown', e => {
-	if(currentMode === 'draw-room') {
-		const pos = getMousePos(e);
-		drawingRoom = {x: pos.x, y: pos.y, width: 0, height: 0};
-		drawTempRect('room', drawingRoom);
-	} else if(currentMode === 'draw-snapzone') {
-		const pos = getMousePos(e);
-		drawingSnapzone = {x: pos.x, y: pos.y, width: 0, height: 0, type: snapzoneTypeSelect.value};
-		drawTempRect('snapzone', drawingSnapzone);
-	}
-});
-container.addEventListener('mousemove', e => {
-	const pos = getMousePos(e);
-	if(currentMode === 'draw-room' && drawingRoom) {
-		drawingRoom.width = Math.max(1, pos.x - drawingRoom.x);
-		drawingRoom.height = Math.max(1, pos.y - drawingRoom.y);
-		drawTempRect('room', drawingRoom);
-	} else if(currentMode === 'draw-snapzone' && drawingSnapzone) {
-		drawingSnapzone.width = Math.max(1, pos.x - drawingSnapzone.x);
-		drawingSnapzone.height = Math.max(1, pos.y - drawingSnapzone.y);
-		drawTempRect('snapzone', drawingSnapzone);
-	}
-
+window.addEventListener('mousemove', e => {
 	if(dragData) {
 		e.preventDefault();
 		const dx = e.clientX - dragData.startX;
@@ -261,7 +239,30 @@ container.addEventListener('mousemove', e => {
 		renderAll();
 		updateOutput();
 	}
+});
 
+container.addEventListener('mousedown', e => {
+	if(currentMode === 'draw-room') {
+		const pos = getMousePos(e);
+		drawingRoom = {x: pos.x, y: pos.y, width: 0, height: 0};
+		drawTempRect('room', drawingRoom);
+	} else if(currentMode === 'draw-snapzone') {
+		const pos = getMousePos(e);
+		drawingSnapzone = {x: pos.x, y: pos.y, width: 0, height: 0, type: snapzoneTypeSelect.value};
+		drawTempRect('snapzone', drawingSnapzone);
+	}
+});
+container.addEventListener('mousemove', e => {
+	const pos = getMousePos(e);
+	if(currentMode === 'draw-room' && drawingRoom) {
+		drawingRoom.width = Math.max(1, pos.x - drawingRoom.x);
+		drawingRoom.height = Math.max(1, pos.y - drawingRoom.y);
+		drawTempRect('room', drawingRoom);
+	} else if(currentMode === 'draw-snapzone' && drawingSnapzone) {
+		drawingSnapzone.width = Math.max(1, pos.x - drawingSnapzone.x);
+		drawingSnapzone.height = Math.max(1, pos.y - drawingSnapzone.y);
+		drawTempRect('snapzone', drawingSnapzone);
+	}
 });
 window.addEventListener('mouseup', e => {
 	if(currentMode === 'draw-room' && drawingRoom) {
