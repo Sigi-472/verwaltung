@@ -123,7 +123,7 @@ def index():
     </style>
 </head>
 <body>
-    <h1>Datenbank Tabellen</h1>
+    <h1>Tabellen</h1>
     <ul>
         {''.join(links)}
     </ul>
