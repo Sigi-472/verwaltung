@@ -90,7 +90,14 @@ def column_label(table, col):
 @app.route("/")
 def index():
     tables = [cls.__tablename__ for cls in Base.__subclasses__()]
-    return render_template("index.html", tables=tables)
+
+    wizard_routes = []
+    for rule in app.url_map.iter_rules():
+        if rule.rule.startswith("/wizard") and rule.rule != "/wizard":
+            wizard_routes.append(rule.rule)
+    wizard_routes = sorted(wizard_routes)
+
+    return render_template("index.html", tables=tables, wizard_routes=wizard_routes)
 
 @app.route('/favicon.ico')
 def favicon():
