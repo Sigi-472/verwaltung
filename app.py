@@ -95,69 +95,164 @@ def index():
 def favicon():
     return send_from_directory(app.static_folder, 'favicon.ico')
 
-@app.route("/table/<table_name>")
-def table_view(table_name):
-    session = Session()
-    cls = next((c for c in Base.__subclasses__() if c.__tablename__ == table_name), None)
-    if not cls:
-        return "Tabelle nicht gefunden", 404
+def get_model_class_by_tablename(table_name, base):
+    """
+    Gibt die ORM-Klasse zurück, deren __tablename__ mit table_name übereinstimmt.
+    """
+    try:
+        cls = next((c for c in base.__subclasses__() if c.__tablename__ == table_name), None)
+        return cls
+    except Exception as e:
+        return None
 
-    inspector = inspect(cls)
-    columns = [c for c in inspector.columns if not c.primary_key and c.name not in ("created_at", "updated_at")]
-    fk_columns = {c.name: list(c.foreign_keys)[0] for c in columns if c.foreign_keys}
+def get_relevant_columns(cls):
+    """
+    Liefert alle Spalten, die keine Primärschlüssel sind und nicht 'created_at' oder 'updated_at' heißen.
+    """
+    try:
+        inspector = inspect(cls)
+        columns = [c for c in inspector.columns if not c.primary_key and c.name not in ("created_at", "updated_at")]
+        return columns
+    except Exception as e:
+        return []
 
+def get_foreign_key_columns(columns):
+    """
+    Extrahiert alle Spalten mit Foreign Keys als Dict: {Spaltenname: ForeignKey}
+    """
+    fk_columns = {}
+    try:
+        for c in columns:
+            if c.foreign_keys:
+                fk_columns[c.name] = list(c.foreign_keys)[0]
+    except Exception as e:
+        pass
+    return fk_columns
+
+def build_fk_options(fk_columns, base, session, fk_display_columns):
+    """
+    Baut ein Dict für Foreign-Key-Spalten, das für jede FK-Spalte die Optionen mit Anzeige-Labels liefert.
+    Format: {fk_spaltenname: [(wert, "Anzeige (wert)"), ...]}
+    """
     fk_options = {}
-    for col_name, fk in fk_columns.items():
-        ref_table = fk.column.table.name
-        ref_cls = next((c for c in Base.__subclasses__() if c.__tablename__ == ref_table), None)
-        if ref_cls:
-            display_col = FK_DISPLAY_COLUMNS.get(ref_table, "name")
-            fk_options[col_name] = [
-                (getattr(r, fk.column.name), f"{getattr(r, display_col, '???')} ({getattr(r, fk.column.name)})")
-                for r in session.query(ref_cls).all()
-            ]
+    try:
+        for col_name, fk in fk_columns.items():
+            ref_table = fk.column.table.name
+            ref_cls = get_model_class_by_tablename(ref_table, base)
+            if not ref_cls:
+                continue
+            display_col = fk_display_columns.get(ref_table, "name")
+            options = []
+            try:
+                results = session.query(ref_cls).all()
+                for r in results:
+                    key = getattr(r, fk.column.name)
+                    display_value = getattr(r, display_col, '???')
+                    options.append((key, f"{display_value} ({key})"))
+                fk_options[col_name] = options
+            except Exception as e:
+                continue
+    except Exception as e:
+        pass
+    return fk_options
 
-    rows = session.query(cls).all()
-
-    def get_input(col, value=None, row_id=None):
+def generate_input_html(table_name, col, value, row_id, fk_options):
+    """
+    Generiert das HTML-Formularelement (input/select) für eine einzelne Zelle.
+    """
+    try:
         input_name = f"{table_name}_{row_id or 'new'}_{col.name}"
         val = "" if value is None else html.escape(str(value))
         if col.name in fk_options:
             opts = "".join(
-                f'<option value="{o[0]}" {"selected" if str(o[0])==val else ""}>{html.escape(o[1])}</option>'
+                f'<option value="{html.escape(str(o[0]))}" {"selected" if str(o[0]) == val else ""}>{html.escape(o[1])}</option>'
                 for o in fk_options[col.name]
             )
             return f'<select name="{input_name}" class="cell-input">{opts}</select>'
-        if str(col.type).startswith("INTEGER"):
+
+        col_type_str = str(col.type).upper()
+        if "INTEGER" in col_type_str:
             return f'<input type="number" name="{input_name}" value="{val}" class="cell-input">'
-        if str(col.type).startswith("FLOAT"):
+        if "FLOAT" in col_type_str or "NUMERIC" in col_type_str or "DECIMAL" in col_type_str:
             return f'<input type="number" step="any" name="{input_name}" value="{val}" class="cell-input">'
-        if str(col.type).startswith("TEXT") or str(col.type).startswith("VARCHAR"):
+        if "TEXT" in col_type_str or "VARCHAR" in col_type_str or "CHAR" in col_type_str:
             return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
-        if "DATE" in str(col.type).upper():
+        if "DATE" in col_type_str:
             return f'<input type="date" name="{input_name}" value="{val}" class="cell-input">'
+        # Default fallback
         return f'<input type="text" name="{input_name}" value="{val}" class="cell-input">'
+    except Exception as e:
+        # Im Fehlerfall ein leeres Feld zurückgeben
+        return f'<input type="text" name="{input_name}" value="" class="cell-input">'
 
-    # Daten vorbereiten für Template
-    column_labels = [column_label(table_name, col.name) for col in columns]
+def build_rows_html(rows, columns, table_name, fk_options):
+    """
+    Baut für jede Zeile und Spalte das passende Input-HTML zusammen.
+    Gibt eine Liste von Listen zurück: [[(input_html, label), ...], ...]
+    """
     row_html = []
-    for row in rows:
-        row_inputs = []
+    try:
+        for row in rows:
+            row_inputs = []
+            for col in columns:
+                try:
+                    # Fall für Spalte 'return' auf 'return_' umleiten
+                    attr_name = col.name if col.name != "return" else "return_"
+                    value = getattr(row, attr_name, None)
+                    label = column_label(table_name, col.name)
+                    input_html = generate_input_html(table_name, col, value, row_id=row.id, fk_options=fk_options)
+                    row_inputs.append((input_html, label))
+                except Exception as e:
+                    row_inputs.append(("", column_label(table_name, col.name)))
+            row_html.append(row_inputs)
+    except Exception as e:
+        pass
+    return row_html
+
+def build_new_entry_inputs(columns, table_name, fk_options):
+    """
+    Baut die Inputs für eine neue Eintragszeile (leer).
+    """
+    new_entry_inputs = []
+    try:
         for col in columns:
-            value = getattr(row, col.name if col.name != "return" else "return_")
+            input_html = generate_input_html(table_name, col, None, None, fk_options)
             label = column_label(table_name, col.name)
-            row_inputs.append((get_input(col, value, row_id=row.id), label))
-        row_html.append(row_inputs)
+            new_entry_inputs.append((input_html, label))
+    except Exception as e:
+        pass
+    return new_entry_inputs
 
-    new_entry_inputs = [
-        (get_input(col), column_label(table_name, col.name)) for col in columns
-    ]
+def load_static_file(path):
+    """
+    Hilfsfunktion zum Einlesen einer statischen Datei, mit Fehlerbehandlung.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        return ""
 
-    # CSS und JS separat halten für bessere Übersichtlichkeit
-    with open("static/table_styles.css") as f:
-        style_css = f.read()
-    with open("static/table_scripts.js") as f:
-        javascript_code = f.read().replace("{{ table_name }}", table_name)
+@app.route("/table/<table_name>")
+def table_view(table_name):
+    session = Session()
+
+    cls = get_model_class_by_tablename(table_name, Base)
+    if not cls:
+        return "Tabelle nicht gefunden", 404
+
+    columns = get_relevant_columns(cls)
+    fk_columns = get_foreign_key_columns(columns)
+    fk_options = build_fk_options(fk_columns, Base, session, FK_DISPLAY_COLUMNS)
+
+    rows = session.query(cls).all()
+
+    column_labels = [column_label(table_name, col.name) for col in columns]
+    row_html = build_rows_html(rows, columns, table_name, fk_options)
+    new_entry_inputs = build_new_entry_inputs(columns, table_name, fk_options)
+
+    style_css = load_static_file("static/table_styles.css")
+    javascript_code = load_static_file("static/table_scripts.js").replace("{{ table_name }}", table_name)
 
     return render_template(
         "table_view.html",
