@@ -46,3 +46,19 @@ $(".save-new").on("click", function() {
         toastr.error("Netzwerkfehler beim Speichern");
     });
 });
+
+$(document).on("click", ".delete-entry", function () {
+    const name = $(this).data("rowname");
+    $.post("/delete/{{ table_name }}", { name: name })
+        .done(function (resp) {
+            if (resp.success) {
+                toastr.success("Eintrag gelöscht.");
+                location.reload();
+            } else {
+                toastr.error("Fehler beim Löschen: " + (resp.error || "Unbekannter Fehler"));
+            }
+        })
+        .fail(function (xhr) {
+            toastr.error("Serverfehler: " + xhr.statusText);
+        });
+});

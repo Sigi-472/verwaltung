@@ -234,5 +234,34 @@ def update_entry(table_name):
         session.rollback()
         return jsonify(success=False, error=str(e))
 
+@app.route("/delete/<table_name>", methods=["POST"])
+def delete_entry(table_name):
+    session = Session()
+    cls = next((c for c in Base.__subclasses__() if c.__tablename__ == table_name), None)
+    if not cls:
+        return jsonify(success=False, error="Tabelle nicht gefunden")
+    try:
+        name = request.form.get("name")
+        prefix = f"{table_name}_"
+        if not name.startswith(prefix):
+            return jsonify(success=False, error="Ungültiger Feldname")
+
+        parts = name[len(prefix):].split("_", 1)
+        if len(parts) != 2:
+            return jsonify(success=False, error="Ungültiger Feldname")
+
+        row_id_str, _ = parts
+        row_id = int(row_id_str)
+        obj = session.query(cls).get(row_id)
+        if not obj:
+            return jsonify(success=False, error="Datensatz nicht gefunden")
+
+        session.delete(obj)
+        session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        session.rollback()
+        return jsonify(success=False, error=str(e))
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

@@ -24,10 +24,18 @@
         <tbody>
             {% for row_inputs in row_html %}
                 <tr>
+                    {% set first_input = row_inputs[0][0] %}
+                    {% set name_attr = first_input.split('name="')[1].split('"')[0] %}
+                    {% set parts = name_attr.split('_') %}
+                    {% set row_id = parts[1] %}
                     {% for input_html in row_inputs %}
                         <td data-label="{{ input_html[1]|e }}">{{ input_html[0]|safe }}</td>
                     {% endfor %}
-                    <td></td>
+                    <td>
+                        <button class="delete-entry"
+                                data-rowname="{{ table_name }}_{{ row_id }}_dummy"
+                                title="Eintrag löschen">Löschen</button>
+                    </td>
                 </tr>
             {% endfor %}
             <tr class="new-entry">
