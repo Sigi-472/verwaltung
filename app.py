@@ -291,7 +291,7 @@ def table_view(table_name):
     if table_has_missing_inputs:
         link = url_for("table_view", table_name=table_name)
         missing_data_messages.append(
-            f'<div class="warning">⚠️ Fehlende Eingabeoptionen für Tabelle <a href="{link}">{html.escape(table_name)}</a></div>'
+            f'<div class="warning">⚠️ Fehlende Eingabeoptionen für Tabelle</div>'
         )
 
     return render_template(
