@@ -49,32 +49,11 @@ $(document).on("click", ".delete-entry", function () {
 });
 
 $(function() {
-    $(".cell-input").filter(function() {
-        return $(this).closest(".new-entry").length === 0;
-    }).on("change", function() {
-        var input = $(this);
-        var name = input.attr("name");
-
-        // Wert aus data-id, wenn vorhanden, sonst aus sichtbarem Text
-        var dataId = input.attr("data-id");
-        var value = (typeof dataId !== "undefined" && dataId !== "") ? dataId : input.val();
-
-        $.post("/update/{{ table_name }}", { name: name, value: value }, function(resp) {
-            if (!resp.success) {
-                toastr.error("Fehler beim Updaten: " + resp.error);
-            } else {
-                toastr.success("Eintrag geupdatet");
-                // Nur nach Erfolg data-id entfernen, damit nicht verloren geht
-                input.removeAttr("data-id");
-            }
-        }, "json").fail(function() {
-            toastr.error("Netzwerkfehler beim Updaten");
-        });
-    });
-
+    // Initialisiere Autocomplete für alle Eingabefelder mit data-autocomplete
     $(".cell-input").each(function() {
         var input = $(this);
-        var data = input.data("autocomplete");
+        var data = input.data("autocomplete"); // Erwarte Array: [{label:"aaaa (2)", value:"2"}, ...]
+
         if (data) {
             input.autocomplete({
                 source: data,
@@ -82,17 +61,46 @@ $(function() {
                 delay: 0,
                 autoFocus: true,
                 select: function(event, ui) {
-                    // sichtbarer Text bleibt ui.item.label
-                    input.val(ui.item.label);
-                    // ID speichern für spätere Übertragung
-                    input.attr("data-id", ui.item.value);
-                    // Trigger für automatisches Speichern (change-Event)
-                    input.trigger("change");
-                    return false;
+                    // ui.item.label = sichtbarer Text, ui.item.value = ID
+                    input.val(ui.item.label);          // sichtbarer Wert bleibt der Text mit z.B. "aaaa (2)"
+                    input.attr("data-id", ui.item.value); // ID im data-id Attribut speichern (z.B. "2")
+                    input.trigger("change");           // change-Event manuell triggern, um speichern anzustoßen
+                    return false;                      // Verhindert Default-Eintrag
                 }
             }).focus(function() {
+                // autocomplete direkt beim Fokus anzeigen
                 $(this).autocomplete("search", "");
             });
         }
+    });
+
+    // Wenn ein Feld geändert wird, sende das update an den Server
+    $(".cell-input").filter(function() {
+        // Nur Felder, die nicht in neuen Zeilen sind
+        return $(this).closest(".new-entry").length === 0;
+    }).on("change", function() {
+        var input = $(this);
+        var name = input.attr("name");
+
+        // Versuche data-id auszulesen
+        var dataId = input.attr("data-id");
+
+        // Debug: Prüfe was gesendet wird
+        console.log("DEBUG: Feld:", name, "data-id:", dataId, "input value:", input.val());
+
+        // Sende die ID, wenn vorhanden, sonst den sichtbaren Wert
+        var valueToSend = (typeof dataId !== "undefined" && dataId !== "") ? dataId : input.val();
+
+        $.post("/update/{{ table_name }}", { name: name, value: valueToSend }, function(resp) {
+            if (!resp.success) {
+                toastr.error("Fehler beim Updaten: " + resp.error);
+            } else {
+                toastr.success("Eintrag geupdatet");
+                // Optional: Nach erfolgreichem Speichern data-id entfernen, wenn du willst:
+                // input.removeAttr("data-id");
+            }
+        }, "json").fail(function() {
+            toastr.error("Netzwerkfehler beim Updaten");
+        });
     });
 });

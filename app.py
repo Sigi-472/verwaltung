@@ -186,17 +186,14 @@ def generate_input_html(table_name, col, value, row_id, fk_options):
             data_json = html.escape(str(datalist).replace("'", '"'))
 
             html_input = (
-                f'<input type="text" name="{input_name}" value="{html.escape(display_val)}" '
-                f'class="cell-input autocomplete-{col.name}" '
+                f'<input type="text" '
+                f'name="{html.escape(input_name)}" '
+                f'value="{html.escape(display_val)}" '
+                f'class="cell-input autocomplete-{html.escape(str(col.name))}" '
                 f'data-id="{html.escape(str(value)) if value is not None else ""}" '
-                f'data-autocomplete=\'{data_json}\'>' + "\n"
+                f'data-autocomplete=\'{html.escape(data_json)}\'>\n'
             )
 
-            # Nur bei row_id == 'new' das JS einmal pro Spalte rendern (nicht pro Zelle)
-            if row_id in (None, 'new'):
-                html_input += ("""
-
-                """)
 
             return html_input
 
