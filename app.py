@@ -78,7 +78,8 @@ COLUMN_LABELS = {
 }
 
 FK_DISPLAY_COLUMNS = {
-    "person": "first_name"
+    "person": "first_name",
+    "person": "last_name",
 }
 
 
