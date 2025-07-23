@@ -504,12 +504,18 @@ def aggregate_transponder_view():
                 "Rückgabedatum": t.return_date.isoformat() if t.return_date else "Nicht zurückgegeben",
                 "Gebäude": ", ".join(sorted(buildings)) if buildings else "-",
                 "Räume": ", ".join(sorted(set(f"{r.name} ({r.floor}.OG)" for r in rooms))) if rooms else "-",
-                "Kommentar": t.comment or "-"
+                "Kommentar": t.comment or "-",
             }
             rows.append(row)
 
         column_labels = list(rows[0].keys()) if rows else []
-        row_data = [[html.escape(str(row[col])) for col in column_labels] for row in rows]
+        column_labels.append("PDF")
+
+
+        row_data = [
+            [html.escape(str(row[col])) for col in column_labels if col != "PDF"] + ["<img src='../static/pdf.svg' height=32 width=32>"]
+            for row in rows
+        ]
 
         # Filter-Dict zum dynamischen Befüllen des Formulars und Anzeige des Status
         filters = {

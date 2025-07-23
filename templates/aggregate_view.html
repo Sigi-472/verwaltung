@@ -1,67 +1,72 @@
 <!DOCTYPE html>
 <html lang="de">
-<head>
-	<meta charset="utf-8">
-	<title>{{ title }}</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<link href="../static/style.css" rel="stylesheet" />
-</head>
-<body>
-    <h1>{{ title }}</h1>
-    <a href="/aggregate/">← zurück</a>
+	<head>
+		<meta charset="utf-8">
+		<title>{{ title }}</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link href="../static/style.css" rel="stylesheet" />
+	</head>
+	<body>
+		<h1>{{ title }}</h1>
+		<a href="/aggregate/">← zurück</a>
 
-    <div class="filter-box">
-        <form method="get" action="{{ url_for_view }}">
-            <label>
-                <input type="checkbox" name="unreturned" value="1"
-                    {% if filters.unreturned %}checked{% endif %}>
-                Nur nicht zurückgegebene Einträge anzeigen
-            </label>
+		<div class="filter-box">
+			<form method="get" action="{{ url_for_view }}">
+				<label>
+					<input type="checkbox" name="unreturned" value="1"
+										 {% if filters.unreturned %}checked{% endif %}>
+					Nur nicht zurückgegebene Einträge anzeigen
+				</label>
 
-            <label for="owner-select">Ausgegeben an:</label>
-            <select name="owner" id="owner-select">
-                <option value="">Alle</option>
-                {% for person in people %}
-                    <option value="{{ person.id }}" {% if filters.owner == person.id %}selected{% endif %}>{{ person.name }}</option>
-                {% endfor %}
-            </select>
+				<label for="owner-select">Ausgegeben an:</label>
+				<select name="owner" id="owner-select">
+					<option value="">Alle</option>
+					{% for person in people %}
+					<option value="{{ person.id }}" {% if filters.owner == person.id %}selected{% endif %}>{{ person.name }}</option>
+					{% endfor %}
+				</select>
 
-            <label for="issuer-select">Ausgegeben durch:</label>
-            <select name="issuer" id="issuer-select">
-                <option value="">Alle</option>
-                {% for person in people %}
-                    <option value="{{ person.id }}" {% if filters.issuer == person.id %}selected{% endif %}>{{ person.name }}</option>
-                {% endfor %}
-            </select>
+				<label for="issuer-select">Ausgegeben durch:</label>
+				<select name="issuer" id="issuer-select">
+					<option value="">Alle</option>
+					{% for person in people %}
+					<option value="{{ person.id }}" {% if filters.issuer == person.id %}selected{% endif %}>{{ person.name }}</option>
+					{% endfor %}
+				</select>
 
-            <button type="submit">Filter anwenden</button>
-            <a href="{{ url_for_view }}">Alle anzeigen</a>
-        </form>
-    </div>
+				<button type="submit">Filter anwenden</button>
+				<a href="{{ url_for_view }}">Alle anzeigen</a>
+			</form>
+		</div>
 
-    {% if row_data %}
-    <div class="table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    {% for col in column_labels %}
-                        <th>{{ col }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in row_data %}
-                <tr>
-                    {% for cell in row %}
-                        <td>{{ cell }}</td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p><em>Keine Daten vorhanden.</em></p>
-    {% endif %}
-</body>
+		{% if row_data %}
+		<div class="table-wrapper">
+			<table>
+				<thead>
+					<tr>
+						{% for col in column_labels %}
+						<th>{{ col }}</th>
+						{% endfor %}
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in row_data %}
+					<tr>
+						{% for cell in row %}
+						{% if loop.index0 == (column_labels|length - 1) %}
+						<td>{{ cell | safe }}</td>  {# PDF-Spalte: nicht escapen #}
+						{% else %}
+						<td>{{ cell }}</td>          {# andere Spalten: escape normal #}
+						{% endif %}
+						{% endfor %}
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+
+		</div>
+		{% else %}
+		<p><em>Keine Daten vorhanden.</em></p>
+		{% endif %}
+	</body>
 </html>
