@@ -513,9 +513,11 @@ def aggregate_transponder_view():
 
 
         row_data = [
-            [html.escape(str(row[col])) for col in column_labels if col != "PDF"] + ["<img src='../static/pdf.svg' height=32 width=32>"]
-            for row in rows
+            [html.escape(str(row[col])) for col in column_labels if col != "PDF"] +
+            [f"<a href='http://localhost:5000/generate_pdf/schliessmedien/?issuer_id={issuer.id if issuer else ''}&owner_id={owner.id if owner else ''}&transponder_id={t.id}'><img src='../static/pdf.svg' height=32 width=32></a>"]
+            for t, row, owner, issuer in [(t, row, t.owner, t.issuer) for t, row in zip(transponder_list, rows)]
         ]
+
 
         # Filter-Dict zum dynamischen Befüllen des Formulars und Anzeige des Status
         filters = {
