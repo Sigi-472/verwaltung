@@ -908,7 +908,7 @@ def generate_fields_for_schluesselausgabe_from_metadata(
             if transponder.get("serial_number"):
                 value = transponder["serial_number"]
         elif name.startswith("AnzahlRow"):
-            value = ""
+            value = "1"
 
         elif name == "Datum Übergebende:r":
             if transponder.get("got_date"):
