@@ -420,7 +420,6 @@ def delete_entry(table_name):
 
     try:
         json_data = request.get_json()
-        print("Empfangene JSON-Daten:", json_data)
 
         if not json_data or "id" not in json_data:
             return jsonify(success=False, error="Keine ID angegeben")
@@ -1147,10 +1146,6 @@ def generate_pdf():
             "<h1>Nicht Gefunden</h1><ul>{% for msg in not_found %}<li>{{ msg }}</li>{% endfor %}</ul>",
             not_found=not_found
         ), 404
-
-    print(issuer)
-    print(owner)
-    print(transponder)
 
     field_data = generate_fields_for_schluesselausgabe_from_metadata(issuer, owner, transponder, )
 
