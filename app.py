@@ -795,8 +795,7 @@ def _wizard_internal(name):
 
     return render_template("wizard.html", config=config, config_json=get_json_safe_config(config), success=success, error=error)
 
-# Platzhalterdaten erzeugen
-def generate_field_data():
+def generate_field_data_from_metadata(issuer: dict, owner: dict, transponder: dict) -> dict:
     data = {}
 
     FIELD_NAMES = [
@@ -810,23 +809,52 @@ def generate_field_data():
     ]
 
     for name in FIELD_NAMES:
-        if "Datum" in name:
-            data[name] = datetime.date.today().strftime("%d.%m.%Y")
-        elif "Anzahl" in name:
-            data[name] = str(random.randint(1, 5))
-        elif "SerienNr" in name or "SchlüsselNr" in name:
-            data[name] = f"SN-{random.randint(1000,9999)}"
-        elif "Raum" in name:
-            data[name] = f"R{random.randint(100,499)}"
-        elif "Gebäude" in name:
-            data[name] = f"G{random.randint(1,9)}"
-        elif "Text" in name:
-            data[name] = f"Text-{random.randint(100,999)}"
-        elif "Weitere Anmerkungen" in name:
-            data[name] = "Dies ist ein automatisierter Testeintrag."
-        else:
-            data[name] = f"Wert-{random.randint(100,999)}"
+        value = ""
+
+        if name == "Text1":
+            value = issuer.get("first_name", "") if issuer else ""
+        elif name == "Text3":
+            value = issuer.get("last_name", "") if issuer else ""
+        elif name == "Text4":
+            value = issuer.get("title", "") if issuer else ""
+        elif name == "Text5":
+            value = owner.get("first_name", "") if owner else ""
+        elif name == "Text7":
+            value = owner.get("last_name", "") if owner else ""
+        elif name == "Text8":
+            value = owner.get("title", "") if owner else ""
+
+        elif name.startswith("GebäudeRow"):
+            index = int(name.replace("GebäudeRow", "")) - 1
+            if 0 <= index < len(transponder.get("rooms", [])):
+                building = transponder["rooms"][index].get("building")
+                if building:
+                    value = building.get("name", "")
+        elif name.startswith("RaumRow"):
+            index = int(name.replace("RaumRow", "")) - 1
+            if 0 <= index < len(transponder.get("rooms", [])):
+                value = transponder["rooms"][index].get("name", "")
+        elif name.startswith("SerienNrSchlüsselNrRow"):
+            if transponder.get("serial_number"):
+                value = transponder["serial_number"]
+        elif name.startswith("AnzahlRow"):
+            # intentionally left empty unless logic provided
+            value = ""
+
+        elif name == "Datum Übergebende:r":
+            if transponder.get("got_date"):
+                value = transponder["got_date"].strftime("%d.%m.%Y")
+        elif name == "Datum Übernehmende:r":
+            if transponder.get("return_date"):
+                value = transponder["return_date"].strftime("%d.%m.%Y")
+        elif name == "Weitere Anmerkungen":
+            if transponder.get("comment"):
+                value = transponder["comment"]
+
+        data[name] = value
+
     return data
+
 
 def get_transponder_metadata(transponder_id: int) -> dict:
     session = Session()
@@ -1042,8 +1070,11 @@ def generate_pdf():
             not_found=not_found
         ), 404
 
+    print(issuer)
+    print(owner)
     print(transponder)
-    field_data = generate_field_data()  # ggf. Argumente übergeben, je nach Bedarf
+
+    field_data = generate_field_data_from_metadata(issuer, owner, transponder)
 
     filled_pdf = fill_pdf_form(TEMPLATE_PATH, field_data)
     if filled_pdf is None:
