@@ -795,7 +795,53 @@ def _wizard_internal(name):
 
     return render_template("wizard.html", config=config, config_json=get_json_safe_config(config), success=success, error=error)
 
-def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dict, transponder: dict) -> dict:
+def get_abteilung_metadata(abteilung_id: int) -> dict:
+    session = Session()
+    try:
+        abteilung = session.query(Abteilung).filter(Abteilung.id == abteilung_id).one_or_none()
+        if abteilung is None:
+            return None
+
+        metadata = {
+            "id": abteilung.id,
+            "name": abteilung.name,
+            "abteilungsleiter": None,
+            "personen": []
+        }
+
+        if abteilung.leiter is not None:
+            metadata["abteilungsleiter"] = {
+                "id": abteilung.leiter.id,
+                "first_name": abteilung.leiter.first_name,
+                "last_name": abteilung.leiter.last_name,
+                "title": abteilung.leiter.title
+            }
+
+        # Falls du die Personen mit drin haben willst
+        for person_to_abteilung in abteilung.persons:
+            person = person_to_abteilung.person
+            if person:
+                metadata["personen"].append({
+                    "id": person.id,
+                    "first_name": person.first_name,
+                    "last_name": person.last_name,
+                    "title": person.title
+                })
+
+        return metadata
+
+    except SQLAlchemyError as e:
+        return {"error": str(e)}
+    finally:
+        session.close()
+
+
+def generate_fields_for_schluesselausgabe_from_metadata(
+    issuer: dict, 
+    owner: dict, 
+    transponder: dict, 
+    abteilung: dict = None
+) -> dict:
     data = {}
 
     FIELD_NAMES = [
@@ -829,15 +875,22 @@ def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dic
         value = ""
 
         if name == "Text1":
-            value = issuer.get("first_name", "") if issuer else ""
+            # Hier wird die Abteilung eingetragen, wenn vorhanden,
+            # ansonsten wie gehabt der Vorname des Issuers
+            if abteilung and "name" in abteilung:
+                value = abteilung["name"]
+
         elif name == "Text3":
-            value = issuer.get("last_name", "") if issuer else ""
+            first_name = issuer.get("first_name", "")
+            last_name = issuer.get("last_name", "")
+            value = f"{last_name}, {first_name}"
+
         elif name == "Text4":
             value = extract_contact_string(issuer)
         elif name == "Text5":
-            value = owner.get("first_name", "") if owner else ""
+            value = abteilung.get("name", "") if abteilung else ""
         elif name == "Text7":
-            value = owner.get("last_name", "") if owner else ""
+            value = owner.get("last_name", "") + ", " + owner.get("first_name", "") if owner else ""
         elif name == "Text8":
             value = extract_contact_string(owner)
 
@@ -870,7 +923,6 @@ def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dic
         data[name] = value
 
     return data
-
 
 
 def get_transponder_metadata(transponder_id: int) -> dict:
@@ -1091,7 +1143,7 @@ def generate_pdf():
     print(owner)
     print(transponder)
 
-    field_data = generate_fields_for_schluesselausgabe_from_metadata(issuer, owner, transponder)
+    field_data = generate_fields_for_schluesselausgabe_from_metadata(issuer, owner, transponder, )
 
     filled_pdf = fill_pdf_form(TEMPLATE_PATH, field_data)
     if filled_pdf is None:
