@@ -808,6 +808,23 @@ def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dic
         'Datum Übergebende:r', 'Datum Übernehmende:r', 'Weitere Anmerkungen'
     ]
 
+    def extract_contact_string(person_dict):
+        if not person_dict:
+            return ""
+        contacts = person_dict.get("contacts", [])
+        if not contacts:
+            return ""
+        contact = contacts[0]  # nur erster Eintrag
+        phone = contact.get("phone", "").strip()
+        email = contact.get("email", "").strip()
+        if phone and email:
+            return f"{phone} / {email}"
+        elif email:
+            return email
+        elif phone:
+            return phone
+        return ""
+
     for name in FIELD_NAMES:
         value = ""
 
@@ -816,13 +833,13 @@ def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dic
         elif name == "Text3":
             value = issuer.get("last_name", "") if issuer else ""
         elif name == "Text4":
-            value = issuer.get("title", "") if issuer else ""
+            value = extract_contact_string(issuer)
         elif name == "Text5":
             value = owner.get("first_name", "") if owner else ""
         elif name == "Text7":
             value = owner.get("last_name", "") if owner else ""
         elif name == "Text8":
-            value = owner.get("title", "") if owner else ""
+            value = extract_contact_string(owner)
 
         elif name.startswith("GebäudeRow"):
             index = int(name.replace("GebäudeRow", "")) - 1
@@ -838,7 +855,6 @@ def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dic
             if transponder.get("serial_number"):
                 value = transponder["serial_number"]
         elif name.startswith("AnzahlRow"):
-            # intentionally left empty unless logic provided
             value = ""
 
         elif name == "Datum Übergebende:r":
@@ -854,6 +870,7 @@ def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dic
         data[name] = value
 
     return data
+
 
 
 def get_transponder_metadata(transponder_id: int) -> dict:
