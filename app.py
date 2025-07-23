@@ -4,6 +4,7 @@ import platform
 import shutil
 import os
 import subprocess
+import random
 
 try:
     import venv
@@ -20,7 +21,7 @@ def create_and_setup_venv():
     print(f"Creating virtualenv at {VENV_PATH}")
     venv.create(VENV_PATH, with_pip=True)
     subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "pip"])
-    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "flask", "sqlalchemy"])
+    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography"])
 
 def restart_with_venv():
     try:
@@ -40,20 +41,24 @@ def restart_with_venv():
         sys.exit(1)
 
 try:
-    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker, joinedload
     from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom, Inventory, Object
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject
+    import io
     from markupsafe import escape
     import html
     from sqlalchemy import Date, DateTime
+    import cryptography
     import datetime
 except ModuleNotFoundError:
     if not VENV_PATH.exists():
         create_and_setup_venv()
     else:
         try:
-            subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "-q", "--upgrade", "flask", "sqlalchemy"])
+            subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "-q", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography"])
         except subprocess.CalledProcessError:
             shutil.rmtree(VENV_PATH)
             create_and_setup_venv()
@@ -787,6 +792,99 @@ def _wizard_internal(name):
             session.close()
 
     return render_template("wizard.html", config=config, config_json=get_json_safe_config(config), success=success, error=error)
+
+
+
+
+
+# PDF Formular-Feldnamen, basierend auf pdftk dump_data_fields
+
+# Platzhalterdaten erzeugen
+def generate_field_data():
+    data = {}
+
+    FIELD_NAMES = [
+        'Text1', 'Text3', 'Text4', 'Text5', 'Text7', 'Text8',
+        'GebäudeRow1', 'RaumRow1', 'SerienNrSchlüsselNrRow1', 'AnzahlRow1',
+        'GebäudeRow2', 'RaumRow2', 'SerienNrSchlüsselNrRow2', 'AnzahlRow2',
+        'GebäudeRow3', 'RaumRow3', 'SerienNrSchlüsselNrRow3', 'AnzahlRow3',
+        'GebäudeRow4', 'RaumRow4', 'SerienNrSchlüsselNrRow4', 'AnzahlRow4',
+        'GebäudeRow5', 'RaumRow5', 'SerienNrSchlüsselNrRow5', 'AnzahlRow5',
+        'Datum Übergebende:r', 'Datum Übernehmende:r', 'Weitere Anmerkungen'
+    ]
+
+    for name in FIELD_NAMES:
+        if "Datum" in name:
+            data[name] = datetime.date.today().strftime("%d.%m.%Y")
+        elif "Anzahl" in name:
+            data[name] = str(random.randint(1, 5))
+        elif "SerienNr" in name or "SchlüsselNr" in name:
+            data[name] = f"SN-{random.randint(1000,9999)}"
+        elif "Raum" in name:
+            data[name] = f"R{random.randint(100,499)}"
+        elif "Gebäude" in name:
+            data[name] = f"G{random.randint(1,9)}"
+        elif "Text" in name:
+            data[name] = f"Text-{random.randint(100,999)}"
+        elif "Weitere Anmerkungen" in name:
+            data[name] = "Dies ist ein automatisierter Testeintrag."
+        else:
+            data[name] = f"Wert-{random.randint(100,999)}"
+    return data
+
+
+def fill_pdf_form(template_path, data_dict):
+    reader = PdfReader(template_path)
+    writer = PdfWriter()
+
+    # Alle Seiten übernehmen
+    writer.append_pages_from_reader(reader)
+
+    # 🛠️ AcroForm vom Original-PDF übernehmen
+    if "/AcroForm" in reader.trailer["/Root"]:
+        writer._root_object.update({
+            NameObject("/AcroForm"): reader.trailer["/Root"]["/AcroForm"]
+        })
+
+    # Feldwerte vorbereiten
+    fields = reader.get_fields()
+    filled_fields = {}
+
+    for field_name in data_dict:
+        if field_name in fields:
+            filled_fields[field_name] = data_dict[field_name]
+
+    # 📝 Formularfelder auf erster Seite aktualisieren
+    writer.update_page_form_field_values(writer.pages[0], filled_fields)
+
+    # Ergebnis zurückgeben
+    output_io = io.BytesIO()
+    writer.write(output_io)
+    output_io.seek(0)
+    return output_io
+
+
+@app.route('/generate_pdf/schliessmedien/')
+def generate_pdf():
+    TEMPLATE_PATH = 'pdfs/ausgabe_schliessmedien.pdf'
+
+    issuer_id = request.args.get('issuer_id')
+    owner_id = request.args.get('owner_id')
+    transponder_id = request.args.get('transponder_id')
+
+    if not issuer_id or not owner_id or not transponder_id:
+        abort(400, 'issuer_id, owner_id und transponder_id müssen gesetzt sein.')
+
+    field_data = generate_field_data()
+
+    filled_pdf = fill_pdf_form(TEMPLATE_PATH, field_data)
+
+    return send_file(
+        filled_pdf,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name='ausgabe_schliessmedien_filled.pdf'
+    )
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
