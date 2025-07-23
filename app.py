@@ -5,6 +5,7 @@ import shutil
 import os
 import subprocess
 import random
+from pprint import pprint
 
 try:
     import venv
@@ -43,7 +44,8 @@ def restart_with_venv():
 try:
     from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file
     from sqlalchemy import create_engine, inspect
-    from sqlalchemy.orm import sessionmaker, joinedload
+    from sqlalchemy.orm import sessionmaker, joinedload, Session
+    from sqlalchemy.exc import SQLAlchemyError
     from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom, Inventory, Object
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import NameObject
@@ -826,6 +828,149 @@ def generate_field_data():
             data[name] = f"Wert-{random.randint(100,999)}"
     return data
 
+def get_transponder_metadata(transponder_id: int) -> dict:
+    session = Session()
+
+    try:
+        transponder = session.query(Transponder).filter(Transponder.id == transponder_id).one_or_none()
+
+        if transponder is None:
+            return None
+
+        metadata = {
+            "id": transponder.id,
+            "serial_number": transponder.serial_number,
+            "got_date": transponder.got_date,
+            "return_date": transponder.return_date,
+            "comment": transponder.comment,
+
+            "issuer": None,
+            "owner": None,
+            "rooms": []
+        }
+
+        if transponder.issuer is not None:
+            metadata["issuer"] = {
+                "id": transponder.issuer.id,
+                "first_name": transponder.issuer.first_name,
+                "last_name": transponder.issuer.last_name,
+                "title": transponder.issuer.title
+            }
+
+        if transponder.owner is not None:
+            metadata["owner"] = {
+                "id": transponder.owner.id,
+                "first_name": transponder.owner.first_name,
+                "last_name": transponder.owner.last_name,
+                "title": transponder.owner.title
+            }
+
+        for link in transponder.room_links:
+            room = link.room
+
+            room_data = {
+                "id": room.id,
+                "name": room.name,
+                "floor": room.floor,
+                "building": None
+            }
+
+            if room.building is not None:
+                room_data["building"] = {
+                    "id": room.building.id,
+                    "name": room.building.name,
+                    "building_number": room.building.building_number,
+                    "address": room.building.address
+                }
+
+            metadata["rooms"].append(room_data)
+
+        return metadata
+
+    except SQLAlchemyError as e:
+        return {"error": str(e)}
+
+def get_person_metadata(person_id: int) -> dict:
+    session = Session()
+
+    try:
+        person = session.query(Person).filter(Person.id == person_id).one_or_none()
+
+        if person is None:
+            return {"error": f"No person found with id {person_id}"}
+
+        metadata = {
+            "id": person.id,
+            "title": person.title,
+            "first_name": person.first_name,
+            "last_name": person.last_name,
+            "created_at": person.created_at,
+            "comment": person.comment,
+            "image_url": person.image_url,
+
+            "contacts": [],
+            "rooms": [],
+            "transponders_issued": [],
+            "transponders_owned": [],
+            "departments": [],
+            "person_abteilungen": [],
+            "professorships": []
+        }
+
+        for contact in person.contacts:
+            metadata["contacts"].append({
+                "id": contact.id,
+                "phone": contact.phone,
+                "fax": contact.fax,
+                "email": contact.email,
+                "comment": contact.comment
+            })
+
+        for room in person.rooms:
+            metadata["rooms"].append({
+                "id": room.id,
+                "room_id": getattr(room, "room_id", None),  # adapt if necessary
+                "comment": getattr(room, "comment", None)
+            })
+
+        for transponder in person.transponders_issued:
+            metadata["transponders_issued"].append({
+                "id": transponder.id,
+                "number": getattr(transponder, "number", None),
+                "owner_id": transponder.owner_id
+            })
+
+        for transponder in person.transponders_owned:
+            metadata["transponders_owned"].append({
+                "id": transponder.id,
+                "number": getattr(transponder, "number", None),
+                "issuer_id": transponder.issuer_id
+            })
+
+        for dept in person.departments:
+            metadata["departments"].append({
+                "id": dept.id,
+                "name": getattr(dept, "name", None)
+            })
+
+        for pa in person.person_abteilungen:
+            metadata["person_abteilungen"].append({
+                "id": pa.id,
+                "abteilung_id": getattr(pa, "abteilung_id", None),
+                "funktion": getattr(pa, "funktion", None)
+            })
+
+        for prof in person.professorships:
+            metadata["professorships"].append({
+                "id": prof.id,
+                "professorship_id": getattr(prof, "professorship_id", None),
+                "title": getattr(prof, "title", None)
+            })
+
+        return metadata
+
+    except SQLAlchemyError as e:
+        return {"error": str(e)}
 
 def fill_pdf_form(template_path, data_dict):
     reader = PdfReader(template_path)
@@ -857,7 +1002,6 @@ def fill_pdf_form(template_path, data_dict):
     output_io.seek(0)
     return output_io
 
-
 @app.route('/generate_pdf/schliessmedien/')
 def generate_pdf():
     TEMPLATE_PATH = 'pdfs/ausgabe_schliessmedien.pdf'
@@ -866,12 +1010,44 @@ def generate_pdf():
     owner_id = request.args.get('owner_id')
     transponder_id = request.args.get('transponder_id')
 
-    if not issuer_id or not owner_id or not transponder_id:
-        abort(400, 'issuer_id, owner_id und transponder_id müssen gesetzt sein.')
+    missing = []
+    if not issuer_id:
+        missing.append("issuer_id (Ausgeber-ID)")
+    if not owner_id:
+        missing.append("owner_id (Besitzer-ID)")
+    if not transponder_id:
+        missing.append("transponder_id")
 
-    field_data = generate_field_data()
+    if missing:
+        return render_template_string(
+            "<h1>Fehlende Parameter</h1><ul>{% for m in missing %}<li>{{ m }}</li>{% endfor %}</ul>",
+            missing=missing
+        ), 400
+
+    issuer = get_person_metadata(issuer_id)
+    owner = get_person_metadata(owner_id)
+    transponder = get_transponder_metadata(transponder_id)
+
+    not_found = []
+    if issuer is None:
+        not_found.append(f"Keine Person mit issuer_id: {issuer_id}")
+    if owner is None:
+        not_found.append(f"Keine Person mit owner_id: {owner_id}")
+    if transponder is None:
+        not_found.append(f"Kein Transponder mit transponder_id: {transponder_id}")
+
+    if not_found:
+        return render_template_string(
+            "<h1>Nicht Gefunden</h1><ul>{% for msg in not_found %}<li>{{ msg }}</li>{% endfor %}</ul>",
+            not_found=not_found
+        ), 404
+
+    print(transponder)
+    field_data = generate_field_data()  # ggf. Argumente übergeben, je nach Bedarf
 
     filled_pdf = fill_pdf_form(TEMPLATE_PATH, field_data)
+    if filled_pdf is None:
+        return render_template_string("<h1>Fehler</h1><p>Das PDF-Formular konnte nicht generiert werden.</p>"), 500
 
     return send_file(
         filled_pdf,
