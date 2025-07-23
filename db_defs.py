@@ -89,6 +89,7 @@ class Room(Base):
     building = relationship("Building", back_populates="rooms")
     person_links = relationship("PersonToRoom", back_populates="room", cascade="all, delete")
     transponder_links = relationship("TransponderToRoom", back_populates="room", cascade="all, delete")
+    layout = relationship("RoomLayout", back_populates="room", uselist=False, cascade="all, delete")
 
 class PersonToRoom(Base):
     __tablename__ = "person_to_room"
@@ -170,3 +171,27 @@ class Inventory(Base):
     professorship = relationship("Professorship", lazy="joined")
     room = relationship("Room", foreign_keys=[raum_id], lazy="joined")
 
+class RoomLayout(Base):
+    __tablename__ = "room_layout"
+    id = Column(Integer, primary_key=True)
+    room_id = Column(Integer, ForeignKey("room.id", ondelete="CASCADE"), nullable=False)
+    x = Column(Integer, nullable=False)
+    y = Column(Integer, nullable=False)
+    width = Column(Integer, nullable=False)
+    height = Column(Integer, nullable=False)
+
+    room = relationship("Room", back_populates="layout")
+    snapzones = relationship("Snapzone", back_populates="layout", cascade="all, delete")
+
+class Snapzone(Base):
+    __tablename__ = "snapzone"
+    id = Column(Integer, primary_key=True)
+    layout_id = Column(Integer, ForeignKey("room_layout.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(Integer, ForeignKey("object_category.id", ondelete="SET NULL"))
+    x = Column(Integer, nullable=False)
+    y = Column(Integer, nullable=False)
+    width = Column(Integer)
+    height = Column(Integer)
+
+    layout = relationship("RoomLayout", back_populates="snapzones")
+    category = relationship("ObjectCategory")

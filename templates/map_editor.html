@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Raum- und Snapzone Editor</title>
+		<link rel="stylesheet" href="static/style.css">
+		<link rel="stylesheet" href="static/map_editor.css">
+	</head>
+	<body>
+		<a href="/aggregate/">← zurück</a>
+		<div id="controls">
+			<button id="draw-room-btn">Raum zeichnen</button>
+			<button id="draw-snapzone-btn" disabled>Snapzone zeichnen</button>
+			<select id="snapzone-type-select" disabled>
+				<option value="laptop">Laptop</option>
+				<option value="stuhl">Stuhl</option>
+				<option value="tisch">Tisch</option>
+			</select>
+			<button id="cancel-draw-btn" disabled>Abbrechen</button>
+		</div>
+
+		<div id="container">
+			<img id="floorplan" src="/static/sechste_etage.png" alt="Etagenplan">
+			<div id="overlay"></div>
+		</div>
+
+		<pre id="output">// Räume und Snapzones werden hier angezeigt</pre>
+
+		<script src="static/map_editor.js"></script>
+	</body>
+</html>
+

@@ -4,6 +4,9 @@ import platform
 import shutil
 import os
 import subprocess
+import random
+from pprint import pprint
+from datetime import date
 
 try:
     import venv
@@ -20,7 +23,7 @@ def create_and_setup_venv():
     print(f"Creating virtualenv at {VENV_PATH}")
     venv.create(VENV_PATH, with_pip=True)
     subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "pip"])
-    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "flask", "sqlalchemy"])
+    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography"])
 
 def restart_with_venv():
     try:
@@ -40,20 +43,25 @@ def restart_with_venv():
         sys.exit(1)
 
 try:
-    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file, Blueprint
     from sqlalchemy import create_engine, inspect
-    from sqlalchemy.orm import sessionmaker, joinedload
+    from sqlalchemy.orm import sessionmaker, joinedload, Session
+    from sqlalchemy.exc import SQLAlchemyError
     from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom, Inventory, Object
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.generic import NameObject
+    import io
     from markupsafe import escape
     import html
     from sqlalchemy import Date, DateTime
+    import cryptography
     import datetime
 except ModuleNotFoundError:
     if not VENV_PATH.exists():
         create_and_setup_venv()
     else:
         try:
-            subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "-q", "--upgrade", "flask", "sqlalchemy"])
+            subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "-q", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography"])
         except subprocess.CalledProcessError:
             shutil.rmtree(VENV_PATH)
             create_and_setup_venv()
@@ -79,6 +87,30 @@ FK_DISPLAY_COLUMNS = {
     "person": ["title", "first_name", "last_name"]
 }
 
+WIZARDS = {}
+
+WIZARDS["transponder"] = {
+    "title": "Transponder erstellen",
+    "model": Transponder,
+    "fields": [
+        {"name": "issuer_id", "type": "number", "label": "Ausgeber-ID", "required": True},
+        {"name": "owner_id", "type": "number", "label": "Besitzer-ID"},
+        {"name": "serial_number", "type": "text", "label": "Seriennummer"},
+        {"name": "got_date", "type": "date", "label": "Ausgabedatum"},
+    ],
+    "subforms": [
+        {
+            "name": "room_links",
+            "label": "Zugeordnete Räume",
+            "model": TransponderToRoom,
+            "foreign_key": "transponder_id",
+            "fields": [
+                {"name": "room_id", "type": "number", "label": "Raum-ID"},
+            ]
+        }
+    ]
+}
+
 EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
 
 def is_valid_email(email):
@@ -90,7 +122,14 @@ def column_label(table, col):
 @app.route("/")
 def index():
     tables = [cls.__tablename__ for cls in Base.__subclasses__()]
-    return render_template("index.html", tables=tables)
+
+    wizard_routes = []
+    for rule in app.url_map.iter_rules():
+        if rule.rule.startswith("/wizard") and rule.rule != "/wizard":
+            wizard_routes.append(rule.rule)
+    wizard_routes = sorted(wizard_routes)
+
+    return render_template("index.html", tables=tables, wizard_routes=wizard_routes)
 
 @app.route('/favicon.ico')
 def favicon():
@@ -258,7 +297,6 @@ def prepare_table_data(session, cls, table_name):
                 table_name=table_name
             )
             if not valid:
-                print(col)
                 table_has_missing_inputs = True
         except Exception as e:
             app.logger.error(f"Fehler bei der Generierung des neuen Input-Felds für {col.name}: {e}")
@@ -688,6 +726,491 @@ def wizard_person():
             session.close()
 
     return render_template("person_wizard.html", success=success, error=error)
+
+@app.route("/map-editor")
+def map_editor():
+    return render_template("map_editor.html")
+
+from copy import deepcopy
+
+@app.route("/wizard/transponder", methods=["GET", "POST"])
+def run_wizard():
+    return _wizard_internal("transponder")
+
+def _wizard_internal(name):
+    config = WIZARDS.get(name)
+    if not config:
+        abort(404)
+
+    # JSON-sichere Version ohne nicht-serialisierbare Objekte
+    def get_json_safe_config(config):
+        safe = deepcopy(config)
+        for sub in safe.get("subforms", []):
+            sub.pop("model", None)
+            sub.pop("foreign_key", None)
+        safe.pop("model", None)
+        return safe
+
+    session = Session()
+    success = False
+    error = None
+
+    if request.method == "POST":
+        try:
+            main_model = config["model"]
+            main_data = {
+                f["name"]: request.form.get(f["name"], "").strip() or None
+                for f in config["fields"]
+            }
+
+            if any(f.get("required") and not main_data[f["name"]] for f in config["fields"]):
+                raise ValueError("Pflichtfelder fehlen.")
+
+            main_instance = main_model(**main_data)
+            session.add(main_instance)
+            session.flush()
+
+            for sub in config.get("subforms", []):
+                model = sub["model"]
+                foreign_key = sub["foreign_key"]
+                field_names = [f["name"] for f in sub["fields"]]
+                data_lists = {f: request.form.getlist(f + "[]") for f in field_names}
+
+                for i in range(max(len(l) for l in data_lists.values())):
+                    entry = {
+                        f: data_lists[f][i].strip() if i < len(data_lists[f]) else None
+                        for f in field_names
+                    }
+                    if any(entry.values()):
+                        entry[foreign_key] = main_instance.id
+                        session.add(model(**entry))
+
+            session.commit()
+            success = True
+
+        except Exception as e:
+            session.rollback()
+            error = str(e)
+        finally:
+            session.close()
+
+    return render_template("wizard.html", config=config, config_json=get_json_safe_config(config), success=success, error=error)
+
+def get_abteilung_metadata(abteilung_id: int) -> dict:
+    session = Session()
+    try:
+        abteilung = session.query(Abteilung).filter(Abteilung.id == abteilung_id).one_or_none()
+        if abteilung is None:
+            return None
+
+        metadata = {
+            "id": abteilung.id,
+            "name": abteilung.name,
+            "abteilungsleiter": None,
+            "personen": []
+        }
+
+        if abteilung.leiter is not None:
+            metadata["abteilungsleiter"] = {
+                "id": abteilung.leiter.id,
+                "first_name": abteilung.leiter.first_name,
+                "last_name": abteilung.leiter.last_name,
+                "title": abteilung.leiter.title
+            }
+
+        # Falls du die Personen mit drin haben willst
+        for person_to_abteilung in abteilung.persons:
+            person = person_to_abteilung.person
+            if person:
+                metadata["personen"].append({
+                    "id": person.id,
+                    "first_name": person.first_name,
+                    "last_name": person.last_name,
+                    "title": person.title
+                })
+
+        return metadata
+
+    except SQLAlchemyError as e:
+        return {"error": str(e)}
+    finally:
+        session.close()
+
+
+def generate_fields_for_schluesselausgabe_from_metadata(
+    issuer: dict, 
+    owner: dict, 
+    transponder: dict, 
+    abteilung: dict = None
+) -> dict:
+    data = {}
+
+    FIELD_NAMES = [
+        'Text1', 'Text3', 'Text4', 'Text5', 'Text7', 'Text8',
+        'GebäudeRow1', 'RaumRow1', 'SerienNrSchlüsselNrRow1', 'AnzahlRow1',
+        'GebäudeRow2', 'RaumRow2', 'SerienNrSchlüsselNrRow2', 'AnzahlRow2',
+        'GebäudeRow3', 'RaumRow3', 'SerienNrSchlüsselNrRow3', 'AnzahlRow3',
+        'GebäudeRow4', 'RaumRow4', 'SerienNrSchlüsselNrRow4', 'AnzahlRow4',
+        'GebäudeRow5', 'RaumRow5', 'SerienNrSchlüsselNrRow5', 'AnzahlRow5',
+        'Datum Übergebende:r', 'Datum Übernehmende:r', 'Weitere Anmerkungen'
+    ]
+
+    def extract_contact_string(person_dict):
+        if not person_dict:
+            return ""
+        contacts = person_dict.get("contacts", [])
+        if not contacts:
+            return ""
+        contact = contacts[0]  # nur erster Eintrag
+        phone = contact.get("phone", "").strip()
+        email = contact.get("email", "").strip()
+        if phone and email:
+            return f"{phone} / {email}"
+        elif email:
+            return email
+        elif phone:
+            return phone
+        return ""
+
+    for name in FIELD_NAMES:
+        value = ""
+
+        if name == "Text1":
+            # Hier wird die Abteilung eingetragen, wenn vorhanden,
+            # ansonsten wie gehabt der Vorname des Issuers
+            if abteilung and "name" in abteilung:
+                value = abteilung["name"]
+
+        elif name == "Text3":
+            first_name = issuer.get("first_name", "")
+            last_name = issuer.get("last_name", "")
+            value = f"{last_name}, {first_name}"
+
+        elif name == "Text4":
+            value = extract_contact_string(issuer)
+        elif name == "Text5":
+            value = abteilung.get("name", "") if abteilung else ""
+        elif name == "Text7":
+            value = owner.get("last_name", "") + ", " + owner.get("first_name", "") if owner else ""
+        elif name == "Text8":
+            value = extract_contact_string(owner)
+
+        elif name.startswith("GebäudeRow"):
+            index = int(name.replace("GebäudeRow", "")) - 1
+            if 0 <= index < len(transponder.get("rooms", [])):
+                building = transponder["rooms"][index].get("building")
+                if building:
+                    value = building.get("name", "")
+        elif name.startswith("RaumRow"):
+            index = int(name.replace("RaumRow", "")) - 1
+            if 0 <= index < len(transponder.get("rooms", [])):
+                value = transponder["rooms"][index].get("name", "")
+        elif name.startswith("SerienNrSchlüsselNrRow1"):
+            if transponder.get("serial_number"):
+                value = transponder["serial_number"]
+        elif name.startswith("AnzahlRow1"):
+            value = "1"
+
+        elif name == "Datum Übergebende:r":
+            if transponder.get("got_date"):
+                value = transponder["got_date"].strftime("%d.%m.%Y")
+        elif name == "Datum Übernehmende:r":
+            if transponder.get("return_date"):
+                value = transponder["return_date"].strftime("%d.%m.%Y")
+        elif name == "Weitere Anmerkungen":
+            if transponder.get("comment"):
+                value = transponder["comment"]
+
+        data[name] = value
+
+    return data
+
+
+def get_transponder_metadata(transponder_id: int) -> dict:
+    session = Session()
+
+    try:
+        transponder = session.query(Transponder).filter(Transponder.id == transponder_id).one_or_none()
+
+        if transponder is None:
+            return None
+
+        metadata = {
+            "id": transponder.id,
+            "serial_number": transponder.serial_number,
+            "got_date": transponder.got_date,
+            "return_date": transponder.return_date,
+            "comment": transponder.comment,
+
+            "issuer": None,
+            "owner": None,
+            "rooms": []
+        }
+
+        if transponder.issuer is not None:
+            metadata["issuer"] = {
+                "id": transponder.issuer.id,
+                "first_name": transponder.issuer.first_name,
+                "last_name": transponder.issuer.last_name,
+                "title": transponder.issuer.title
+            }
+
+        if transponder.owner is not None:
+            metadata["owner"] = {
+                "id": transponder.owner.id,
+                "first_name": transponder.owner.first_name,
+                "last_name": transponder.owner.last_name,
+                "title": transponder.owner.title
+            }
+
+        for link in transponder.room_links:
+            room = link.room
+
+            room_data = {
+                "id": room.id,
+                "name": room.name,
+                "floor": room.floor,
+                "building": None
+            }
+
+            if room.building is not None:
+                room_data["building"] = {
+                    "id": room.building.id,
+                    "name": room.building.name,
+                    "building_number": room.building.building_number,
+                    "address": room.building.address
+                }
+
+            metadata["rooms"].append(room_data)
+
+        return metadata
+
+    except SQLAlchemyError as e:
+        return {"error": str(e)}
+
+def get_person_metadata(person_id: int) -> dict:
+    session = Session()
+
+    try:
+        person = session.query(Person).filter(Person.id == person_id).one_or_none()
+
+        if person is None:
+            return {"error": f"No person found with id {person_id}"}
+
+        metadata = {
+            "id": person.id,
+            "title": person.title,
+            "first_name": person.first_name,
+            "last_name": person.last_name,
+            "created_at": person.created_at,
+            "comment": person.comment,
+            "image_url": person.image_url,
+
+            "contacts": [],
+            "rooms": [],
+            "transponders_issued": [],
+            "transponders_owned": [],
+            "departments": [],
+            "person_abteilungen": [],
+            "professorships": []
+        }
+
+        for contact in person.contacts:
+            metadata["contacts"].append({
+                "id": contact.id,
+                "phone": contact.phone,
+                "fax": contact.fax,
+                "email": contact.email,
+                "comment": contact.comment
+            })
+
+        for room in person.rooms:
+            metadata["rooms"].append({
+                "id": room.id,
+                "room_id": getattr(room, "room_id", None),  # adapt if necessary
+                "comment": getattr(room, "comment", None)
+            })
+
+        for transponder in person.transponders_issued:
+            metadata["transponders_issued"].append({
+                "id": transponder.id,
+                "number": getattr(transponder, "number", None),
+                "owner_id": transponder.owner_id
+            })
+
+        for transponder in person.transponders_owned:
+            metadata["transponders_owned"].append({
+                "id": transponder.id,
+                "number": getattr(transponder, "number", None),
+                "issuer_id": transponder.issuer_id
+            })
+
+        for dept in person.departments:
+            metadata["departments"].append({
+                "id": dept.id,
+                "name": getattr(dept, "name", None)
+            })
+
+        for pa in person.person_abteilungen:
+            metadata["person_abteilungen"].append({
+                "id": pa.id,
+                "abteilung_id": getattr(pa, "abteilung_id", None),
+                "funktion": getattr(pa, "funktion", None)
+            })
+
+        for prof in person.professorships:
+            metadata["professorships"].append({
+                "id": prof.id,
+                "professorship_id": getattr(prof, "professorship_id", None),
+                "title": getattr(prof, "title", None)
+            })
+
+        return metadata
+
+    except SQLAlchemyError as e:
+        return {"error": str(e)}
+
+def fill_pdf_form(template_path, data_dict):
+    reader = PdfReader(template_path)
+    writer = PdfWriter()
+
+    # Alle Seiten übernehmen
+    writer.append_pages_from_reader(reader)
+
+    # 🛠️ AcroForm vom Original-PDF übernehmen
+    if "/AcroForm" in reader.trailer["/Root"]:
+        writer._root_object.update({
+            NameObject("/AcroForm"): reader.trailer["/Root"]["/AcroForm"]
+        })
+
+    # Feldwerte vorbereiten
+    fields = reader.get_fields()
+    filled_fields = {}
+
+    for field_name in data_dict:
+        if field_name in fields:
+            filled_fields[field_name] = data_dict[field_name]
+
+    # 📝 Formularfelder auf erster Seite aktualisieren
+    writer.update_page_form_field_values(writer.pages[0], filled_fields)
+
+    # Ergebnis zurückgeben
+    output_io = io.BytesIO()
+    writer.write(output_io)
+    output_io.seek(0)
+    return output_io
+
+@app.route('/generate_pdf/schliessmedien/')
+def generate_pdf():
+    TEMPLATE_PATH = 'pdfs/ausgabe_schliessmedien.pdf'
+
+    issuer_id = request.args.get('issuer_id')
+    owner_id = request.args.get('owner_id')
+    transponder_id = request.args.get('transponder_id')
+
+    missing = []
+    if not issuer_id:
+        missing.append("issuer_id (Ausgeber-ID)")
+    if not owner_id:
+        missing.append("owner_id (Besitzer-ID)")
+    if not transponder_id:
+        missing.append("transponder_id")
+
+    if missing:
+        return render_template_string(
+            "<h1>Fehlende Parameter</h1><ul>{% for m in missing %}<li>{{ m }}</li>{% endfor %}</ul>",
+            missing=missing
+        ), 400
+
+    issuer = get_person_metadata(issuer_id)
+    owner = get_person_metadata(owner_id)
+    transponder = get_transponder_metadata(transponder_id)
+
+    not_found = []
+    if issuer is None:
+        not_found.append(f"Keine Person mit issuer_id: {issuer_id}")
+    if owner is None:
+        not_found.append(f"Keine Person mit owner_id: {owner_id}")
+    if transponder is None:
+        not_found.append(f"Kein Transponder mit transponder_id: {transponder_id}")
+
+    if not_found:
+        return render_template_string(
+            "<h1>Nicht Gefunden</h1><ul>{% for msg in not_found %}<li>{{ msg }}</li>{% endfor %}</ul>",
+            not_found=not_found
+        ), 404
+
+    print(issuer)
+    print(owner)
+    print(transponder)
+
+    field_data = generate_fields_for_schluesselausgabe_from_metadata(issuer, owner, transponder, )
+
+    filled_pdf = fill_pdf_form(TEMPLATE_PATH, field_data)
+    if filled_pdf is None:
+        return render_template_string("<h1>Fehler</h1><p>Das PDF-Formular konnte nicht generiert werden.</p>"), 500
+
+    return send_file(
+        filled_pdf,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name='ausgabe_schliessmedien_filled.pdf'
+    )
+
+
+@app.route("/transponder", methods=["GET"])
+def transponder_form():
+    session = Session()
+    persons = session.query(Person).order_by(Person.last_name).all()
+    transponders = session.query(Transponder).options(
+        joinedload(Transponder.owner)
+    ).order_by(Transponder.serial_number).all()
+
+    return render_template("transponder_form.html",
+        config={"title": "Transponder-Ausgabe / Rückgabe"},
+        persons=persons,
+        transponders=transponders,
+        current_date=date.today().isoformat()
+    )
+
+@app.route("/transponder/ausgabe", methods=["POST"])
+def transponder_ausgabe():
+    person_id = request.form.get("person_id")
+    transponder_id = request.form.get("transponder_id")
+    got_date_str = request.form.get("got_date")
+
+    session = Session()
+
+    try:
+        transponder = session.get(Transponder, int(transponder_id))
+        transponder.owner_id = int(person_id)
+        transponder.got_date = date.fromisoformat(got_date_str)
+        session.session.commit()
+        flash("Transponder erfolgreich ausgegeben.", "success")
+    except Exception as e:
+        session.session.rollback()
+        flash(f"Fehler bei Ausgabe: {str(e)}", "danger")
+
+    return redirect(url_for("transponder.transponder_form"))
+
+@app.route("/transponder/rueckgabe", methods=["POST"])
+def transponder_rueckgabe():
+    transponder_id = request.form.get("transponder_id")
+    return_date_str = request.form.get("return_date")
+
+    session = Session()
+
+    try:
+        transponder = session.session.get(Transponder, int(transponder_id))
+        transponder.return_date = date.fromisoformat(return_date_str)
+        transponder.owner_id = None
+        session.commit()
+        flash("Transponder erfolgreich zurückgenommen.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Fehler bei Rückgabe: {str(e)}", "danger")
+
+    return redirect(url_for("transponder.transponder_form"))
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
