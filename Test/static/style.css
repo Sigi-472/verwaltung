@@ -1,15 +1,14 @@
 html, body {
-    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    margin: 0; padding: 0; height: 100%;
     background: #e0e0e0;
     font-family: sans-serif;
 }
 #viewport {
-    width: 100vw; height: 100vh; overflow: hidden; position: relative;
+    width: 100vw; height: 100vh; position: relative;
     user-select: none; /* Verhindert Textauswahl beim Drag */
 }
 #floorplan {
-    position: absolute; top: 0; left: 0; transform-origin: top left;
-    width: 1200px; height: 400px;
+    position: relative; top: 0; left: 0; transform-origin: top left;
     background: #fff;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
     cursor: grab;
@@ -18,7 +17,6 @@ html, body {
     position: absolute;
     width: 200px; height: 150px;
     border: 2px solid #007bff;
-    background: #f8f9fa;
     box-shadow: 0 0 5px rgba(0,0,0,0.3);
     box-sizing: border-box;
     overflow: visible;
@@ -62,6 +60,30 @@ html, body {
     z-index: 300;
     transition: left 0.15s ease, top 0.15s ease;
 }
+#addPersonBtn {
+    position: fixed;
+    bottom: 20px; left: 240px;
+    z-index: 9999;
+    padding: 10px 15px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 200px;
+}
+#personForm {
+    position: fixed;
+    bottom: 70px;
+    left: 240px;
+    z-index: 9999;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 5px 10px;
+    display: none;
+    width: 200px;
+}
 #addBtn {
     position: fixed;
     bottom: 20px; left: 20px;
@@ -72,6 +94,7 @@ html, body {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    width: 200px;
 }
 #shapeSelector {
     position: fixed;
@@ -83,6 +106,7 @@ html, body {
     border-radius: 6px;
     padding: 5px 10px;
     display: none;
+    width: 200px;
 }
 
 .snapzone {

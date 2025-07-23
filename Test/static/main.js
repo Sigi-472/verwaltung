@@ -7,7 +7,6 @@ let offsetX = 0;
 let offsetY = 0;
 let objId = 0;
 let selectedShape = null;
-let isPanning = false;
 let startPanX = 0;
 let startPanY = 0;
 let startOffsetX = 0;
@@ -30,6 +29,7 @@ const DEFAULT_SNAPZONE_WIDTH = 40;
 const DEFAULT_SNAPZONE_HEIGHT = 40;
 
 // Räume
+/*
 const roomsData = [
   {
     name: "701",
@@ -142,6 +142,68 @@ const roomsData = [
     ],
   },
 ];
+*/
+
+const roomsData = [
+  {
+    "name": "668",
+    "x": 27,
+    "y": 45,
+    "width": 276,
+    "height": 353,
+    "snapzones": [
+      {
+        "type": "laptop",
+        "x": 78,
+        "y": 110,
+        "width": 98,
+        "height": 90,
+        "id": "snapzone1"
+      },
+      {
+        "type": "tisch",
+        "x": 189,
+        "y": 31,
+        "width": 54,
+        "height": 40,
+        "id": "snapzone2"
+      },
+      {
+        "type": "stuhl",
+        "x": 90,
+        "y": 258,
+        "width": 100,
+        "height": 59,
+        "id": "snapzone3"
+      }
+    ]
+  },
+  {
+    "name": "",
+    "x": 312,
+    "y": 45,
+    "width": 133,
+    "height": 353,
+    "snapzones": [
+      {
+        "type": "stuhl",
+        "x": 35,
+        "y": 101,
+        "width": 53,
+        "height": 95,
+        "id": "snapzone2"
+      },
+      {
+        "type": "laptop",
+        "x": 21,
+        "y": 223,
+        "width": 79,
+        "height": 79,
+        "id": "snapzone1"
+      }
+    ]
+  }
+]
 
 const rooms = {};
 
@@ -256,6 +318,27 @@ function createObject(shape) {
   obj.draggable = false;
 
   floorplan.appendChild(obj);
+
+  function createperson(type) {
+  const el = document.createElement("div");
+  el.classList.add("object");
+
+  if (type === "person") {
+    el.classList.add("person");
+    el.style.width = "40px";
+    el.style.height = "40px";
+    el.style.borderRadius = "50%";
+    el.style.backgroundColor = "#2ecc71";
+    el.title = "Person";
+  }
+
+  el.style.position = "absolute";
+  el.style.left = "100px";
+  el.style.top = "100px";
+
+  floorplan.appendChild(el);
+}
+
 
   // Erstes Zimmer zuweisen + Counter aktualisieren
   const firstRoom = Object.values(rooms)[0];
@@ -499,8 +582,157 @@ function makeDraggable(el) {
 
   el.addEventListener("mousedown", startDragging);
 }
+  // Globale Personendatenbank
+  const personDatabase = [
+    { vorname: "Max", nachname: "Mustermann", alter: 30, rolle: "Entwickler", etage: 7 },
+    { vorname: "Anna", nachname: "Müller", alter: 25, rolle: "Designer", etage: 6 }
+  ];
 
-// UI - Objekt hinzufügen
+  const addPersonBtn = document.getElementById("addPersonBtn");
+  const personForm = document.getElementById("personForm");
+  const dynamicForm = document.getElementById("dynamicPersonForm");
+  const confirmPersonBtn = document.getElementById("confirmPersonBtn");
+  const existingPersonSelect = document.getElementById("existingPersonSelect");
+
+  const personSchema = [
+    { label: "Vorname", key: "vorname", type: "string" },
+    { label: "Nachname", key: "nachname", type: "string" },
+    { label: "Alter", key: "alter", type: "integer" },
+    { label: "Rolle", key: "rolle", type: "string" }
+  ];
+
+  // Hilfsfunktion: Formular generieren
+  function generateForm(schema, formElement) {
+    formElement.innerHTML = ""; // Formular leeren
+
+    schema.forEach(field => {
+      const label = document.createElement("label");
+      label.textContent = field.label + ": ";
+
+      const input = document.createElement("input");
+      input.name = field.key;
+      input.type = field.type === "integer" ? "number" : "text";
+      input.required = true;
+
+      label.appendChild(input);
+      formElement.appendChild(label);
+      formElement.appendChild(document.createElement("br"));
+    });
+  }
+
+  // Bestehende Personen in Select füllen
+  function populateExistingPersonSelect() {
+    existingPersonSelect.innerHTML = "";
+    personDatabase.forEach((person, index) => {
+      const option = document.createElement("option");
+      option.value = index;
+      option.textContent = `${person.vorname} ${person.nachname} (${person.rolle})`;
+      existingPersonSelect.appendChild(option);
+    });
+  }
+
+  // Anzeigen je nach Modus (select oder new)
+  function updateFormMode() {
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+
+    if (mode === "select") {
+      dynamicForm.style.display = "none";
+      document.getElementById("selectPersonArea").style.display = "block";
+    } else {
+      generateForm(personSchema, dynamicForm);
+      dynamicForm.style.display = "block";
+      document.getElementById("selectPersonArea").style.display = "none";
+    }
+  }
+
+  addPersonBtn.addEventListener("click", () => {
+    personForm.style.display = "block";
+    populateExistingPersonSelect();
+    updateFormMode();
+  });
+
+  // Radio Buttons für Modus wechseln
+  document.querySelectorAll('input[name="mode"]').forEach(radio => {
+    radio.addEventListener("change", updateFormMode);
+  });
+
+  confirmPersonBtn.addEventListener("click", () => {
+    const mode = document.querySelector('input[name="mode"]:checked').value;
+
+    if (mode === "select") {
+      const selectedIndex = existingPersonSelect.value;
+      if (selectedIndex === "") {
+        alert("Bitte eine Person auswählen!");
+        return;
+      }
+      const person = personDatabase[selectedIndex];
+      createPersonCircle(person);
+    } else {
+      // Neue Person anlegen
+      const formData = new FormData(dynamicForm);
+      const newPerson = {};
+
+      for (const field of personSchema) {
+        let value = formData.get(field.key);
+        if (!value) {
+          alert(`Bitte das Feld "${field.label}" ausfüllen.`);
+          return;
+        }
+        if (field.type === "integer") value = parseInt(value, 10);
+        newPerson[field.key] = value;
+      }
+
+      // Neue Person in Datenbank speichern
+      personDatabase.push(newPerson);
+
+      createPersonCircle(newPerson);
+    }
+
+    // Formular zurücksetzen
+    personForm.style.display = "none";
+    dynamicForm.innerHTML = "";
+    dynamicForm.style.display = "none";
+  });
+
+
+
+// Erstelle Person-Kreis und hänge an Floorplan an
+function createPersonCircle(attributes) {
+  const circle = document.createElement("div");
+  circle.style.width = "120px";
+  circle.style.height = "120px";
+  circle.style.borderRadius = "50%";
+  circle.style.border = "2px solid #333";
+  circle.style.display = "flex";
+  circle.style.flexDirection = "column";
+  circle.style.justifyContent = "center";
+  circle.style.alignItems = "center";
+  circle.style.margin = "0"; // Margin vermeiden, positioniert sich sonst komisch
+  circle.style.backgroundColor = "#f0f0f0";
+  circle.style.boxShadow = "0 0 5px rgba(0,0,0,0.3)";
+  circle.style.fontFamily = "Arial, sans-serif";
+  circle.style.textAlign = "center";
+  circle.style.padding = "10px";
+
+  circle.style.position = "absolute";
+  circle.style.cursor = "grab";
+
+  // Startposition in der Mitte des Floorplans
+  circle.style.left = (floorplan.clientWidth / 2 - 60) + "px";
+  circle.style.top = (floorplan.clientHeight / 2 - 60) + "px";
+
+  circle.innerHTML = `
+    <strong>${attributes.vorname} ${attributes.nachname}</strong><br>
+    Alter: ${attributes.alter}<br>
+    Rolle: ${attributes.rolle}
+  `;
+
+  floorplan.appendChild(circle);
+
+  // Person draggable machen (die Funktion ändert sich nicht)
+  makeDraggable(circle);
+}
+
 const addBtn = document.getElementById("addBtn");
 const shapeSelector = document.getElementById("shapeSelector");
 const shapeSelect = document.getElementById("shapeSelect");
@@ -515,61 +747,13 @@ confirmAddBtn.addEventListener("click", () => {
   shapeSelector.style.display = "none";
 });
 
-floorplan.style.transformOrigin = "0 0";
+function disableMouseWheelScrollAllowArrowKeys() {
+  window.addEventListener('wheel', (event) => {
+    event.preventDefault(); // Mausrad-Scrollen verhindern
+  }, { passive: false });
 
-floorplan.addEventListener("mousedown", e => {
-  if (e.target.classList.contains("object")) return; // Nur auf Floorplan, nicht Objekte
-
-  isPanning = true;
-  startPanX = e.clientX;
-  startPanY = e.clientY;
-  startOffsetX = offsetX;
-  startOffsetY = offsetY;
-  floorplan.style.cursor = "grabbing";
-});
-
-window.addEventListener("mouseup", e => {
-  isPanning = false;
-  floorplan.style.cursor = "grab";
-});
-
-window.addEventListener("mousemove", e => {
-  if (!isPanning) return;
-  const dx = e.clientX - startPanX;
-  const dy = e.clientY - startPanY;
-  offsetX = startOffsetX + dx;
-  offsetY = startOffsetY + dy;
-  applyTransform();
-});
-
-floorplan.addEventListener("wheel", e => {
-  e.preventDefault();
-
-  // Zoom um Mausposition
-  const zoomIntensity = 0.1;
-  const oldScale = scale;
-  if (e.deltaY < 0) {
-    scale *= 1 + zoomIntensity;
-  } else {
-    scale /= 1 + zoomIntensity;
-  }
-  scale = Math.min(Math.max(0.5, scale), 3);
-
-  // Berechne Offset, damit Zoom um Mausposition erfolgt
-  const floorplanRect = floorplan.getBoundingClientRect();
-  const mx = e.clientX - floorplanRect.left;
-  const my = e.clientY - floorplanRect.top;
-
-  offsetX -= (mx / oldScale - mx / scale);
-  offsetY -= (my / oldScale - my / scale);
-
-  applyTransform();
-}, { passive: false });
-
-function applyTransform() {
-  floorplan.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-}
+  // Pfeiltasten bleiben unberührt und können scrollen
+} 
 
 // Initial
-applyTransform();
 createRooms();
