@@ -6,6 +6,7 @@ import os
 import subprocess
 import random
 from pprint import pprint
+from datetime import date
 
 try:
     import venv
@@ -42,7 +43,7 @@ def restart_with_venv():
         sys.exit(1)
 
 try:
-    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file, Blueprint
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker, joinedload, Session
     from sqlalchemy.exc import SQLAlchemyError
@@ -1155,6 +1156,61 @@ def generate_pdf():
         as_attachment=True,
         download_name='ausgabe_schliessmedien_filled.pdf'
     )
+
+
+@app.route("/transponder", methods=["GET"])
+def transponder_form():
+    session = Session()
+    persons = session.query(Person).order_by(Person.last_name).all()
+    transponders = session.query(Transponder).options(
+        joinedload(Transponder.owner)
+    ).order_by(Transponder.serial_number).all()
+
+    return render_template("transponder_form.html",
+        config={"title": "Transponder-Ausgabe / Rückgabe"},
+        persons=persons,
+        transponders=transponders,
+        current_date=date.today().isoformat()
+    )
+
+@app.route("/transponder/ausgabe", methods=["POST"])
+def transponder_ausgabe():
+    person_id = request.form.get("person_id")
+    transponder_id = request.form.get("transponder_id")
+    got_date_str = request.form.get("got_date")
+
+    session = Session()
+
+    try:
+        transponder = session.get(Transponder, int(transponder_id))
+        transponder.owner_id = int(person_id)
+        transponder.got_date = date.fromisoformat(got_date_str)
+        session.session.commit()
+        flash("Transponder erfolgreich ausgegeben.", "success")
+    except Exception as e:
+        session.session.rollback()
+        flash(f"Fehler bei Ausgabe: {str(e)}", "danger")
+
+    return redirect(url_for("transponder.transponder_form"))
+
+@app.route("/transponder/rueckgabe", methods=["POST"])
+def transponder_rueckgabe():
+    transponder_id = request.form.get("transponder_id")
+    return_date_str = request.form.get("return_date")
+
+    session = Session()
+
+    try:
+        transponder = session.session.get(Transponder, int(transponder_id))
+        transponder.return_date = date.fromisoformat(return_date_str)
+        transponder.owner_id = None
+        session.commit()
+        flash("Transponder erfolgreich zurückgenommen.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Fehler bei Rückgabe: {str(e)}", "danger")
+
+    return redirect(url_for("transponder.transponder_form"))
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
