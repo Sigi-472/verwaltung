@@ -795,7 +795,7 @@ def _wizard_internal(name):
 
     return render_template("wizard.html", config=config, config_json=get_json_safe_config(config), success=success, error=error)
 
-def generate_field_data_from_metadata(issuer: dict, owner: dict, transponder: dict) -> dict:
+def generate_fields_for_schluesselausgabe_from_metadata(issuer: dict, owner: dict, transponder: dict) -> dict:
     data = {}
 
     FIELD_NAMES = [
@@ -1074,7 +1074,7 @@ def generate_pdf():
     print(owner)
     print(transponder)
 
-    field_data = generate_field_data_from_metadata(issuer, owner, transponder)
+    field_data = generate_fields_for_schluesselausgabe_from_metadata(issuer, owner, transponder)
 
     filled_pdf = fill_pdf_form(TEMPLATE_PATH, field_data)
     if filled_pdf is None:
