@@ -904,7 +904,7 @@ def generate_fields_for_schluesselausgabe_from_metadata(
             index = int(name.replace("RaumRow", "")) - 1
             if 0 <= index < len(transponder.get("rooms", [])):
                 value = transponder["rooms"][index].get("name", "")
-        elif name.startswith("SerienNrSchlüsselNrRow"):
+        elif name.startswith("SerienNrSchlüsselNrRow1"):
             if transponder.get("serial_number"):
                 value = transponder["serial_number"]
         elif name.startswith("AnzahlRow"):
