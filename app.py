@@ -793,12 +793,6 @@ def _wizard_internal(name):
 
     return render_template("wizard.html", config=config, config_json=get_json_safe_config(config), success=success, error=error)
 
-
-
-
-
-# PDF Formular-Feldnamen, basierend auf pdftk dump_data_fields
-
 # Platzhalterdaten erzeugen
 def generate_field_data():
     data = {}
