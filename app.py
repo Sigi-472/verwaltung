@@ -868,12 +868,16 @@ def generate_fields_for_schluesselausgabe_from_metadata(
         contact = contacts[0]  # nur erster Eintrag
         phone = contact.get("phone", "").strip()
         email = contact.get("email", "").strip()
+
         if phone and email:
             return f"{phone} / {email}"
-        elif email:
+
+        if email:
             return email
-        elif phone:
+
+        if phone:
             return phone
+
         return ""
 
     for name in FIELD_NAMES:
