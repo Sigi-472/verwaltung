@@ -8,13 +8,13 @@
 <body>
 
     <div class="tabs">
-        <div class="tab-button active" data-tab="tab-wizards">Wizards</div>
+        <div class="tab-button" data-tab="tab-wizards">Wizards</div>
         <div class="tab-button" data-tab="tab-aggregate">Aggregate</div>
         <div class="tab-button" data-tab="tab-tables">Tabellen</div>
         <div class="tab-button" data-tab="tab-map">Map-Editor</div>
     </div>
 
-    <div id="tab-wizards" class="tab-content active">
+    <div id="tab-wizards" class="tab-content">
         <ul>
             {% for route in wizard_routes %}
                 <li><a href="{{ route }}">{{ route.replace('/wizard/', '').capitalize() }}</a></li>
@@ -39,26 +39,54 @@
     </div>
 
     <script>
-        function switchTab(event) {
+        function switchTab(eventOrTabId) {
+            var tabId;
+            if (typeof eventOrTabId === 'string') {
+                tabId = eventOrTabId;
+            } else {
+                tabId = eventOrTabId.target.getAttribute('data-tab');
+                if (tabId) {
+                    window.location.hash = tabId;
+                }
+            }
+
             var tabButtons = document.querySelectorAll('.tab-button');
             var tabContents = document.querySelectorAll('.tab-content');
 
             tabButtons.forEach(function (btn) {
-                btn.classList.remove('active');
+                if (btn.getAttribute('data-tab') === tabId) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             });
 
             tabContents.forEach(function (tab) {
-                tab.classList.remove('active');
+                if (tab.id === tabId) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
             });
-
-            var tabId = event.target.getAttribute('data-tab');
-            document.getElementById(tabId).classList.add('active');
-            event.target.classList.add('active');
         }
 
         var buttons = document.querySelectorAll('.tab-button');
         buttons.forEach(function (btn) {
             btn.addEventListener('click', switchTab);
+        });
+
+        window.addEventListener('DOMContentLoaded', function () {
+            var hash = window.location.hash.substring(1);  // remove leading #
+            var tabExists = document.getElementById(hash) !== null;
+
+            if (hash && tabExists) {
+                switchTab(hash);
+            } else {
+                // Fallback: aktiviere ersten Tab
+                var firstTab = buttons[0].getAttribute('data-tab');
+                switchTab(firstTab);
+                window.location.hash = firstTab;
+            }
         });
     </script>
 
