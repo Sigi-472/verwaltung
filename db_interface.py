@@ -6,7 +6,7 @@ from db_defs import (
     Person, PersonContact, Abteilung, PersonToAbteilung,
     Building, Room, PersonToRoom, Transponder, TransponderToRoom
 )
-
+from sqlalchemy.exc import IntegrityError
 
 class AbstractDBHandler:
     def __init__(self, session: Session, model: Type):
@@ -138,19 +138,50 @@ class PersonWithContactHandler:
                 return existing_row.id
             raise e
 
-    def insert_person_with_contacts(self, person_data: Dict[str, Any], contacts: list[Dict[str, Any]]) -> int:
-        if "created_at" not in person_data:
-            person_data["created_at"] = datetime.datetime.utcnow()
+    def insert_person_with_contacts(self, person_data: dict, contacts: list) -> int | None:
+        # 1. Prüfe, ob Person schon existiert (title, first_name, last_name)
+        stmt = select(Person).where(
+            Person.title == person_data.get("title"),
+            Person.first_name == person_data.get("first_name"),
+            Person.last_name == person_data.get("last_name")
+        )
+        existing_person = self.session.execute(stmt).scalars().first()
+        if existing_person:
+            print(f"❌ Person mit (title={person_data.get('title')}, first_name={person_data.get('first_name')}, last_name={person_data.get('last_name')}) existiert bereits (ID={existing_person.id})")
+            return None
 
-        person_id = self._safe_insert(Person, person_data)
+        # 2. Person anlegen
+        new_person = Person(
+            title=person_data.get("title"),
+            first_name=person_data.get("first_name"),
+            last_name=person_data.get("last_name"),
+            created_at=person_data.get("created_at") or datetime.utcnow(),
+            comment=person_data.get("comment"),
+            image_url=person_data.get("image_url")
+        )
 
-        for contact in contacts:
-            contact_data = contact.copy()
-            contact_data["person_id"] = person_id
-            self._safe_insert(PersonContact, contact_data)
+        # 3. Kontakte anlegen (optional, wenn contacts übergeben wurden)
+        if contacts:
+            for c in contacts:
+                contact = PersonContact(
+                    phone=c.get("phone"),
+                    fax=c.get("fax"),
+                    email=c.get("email"),
+                    comment=c.get("comment"),
+                    person=new_person
+                )
+                self.session.add(contact)
 
-        return person_id
-
+        # 4. Daten speichern und Fehler abfangen
+        self.session.add(new_person)
+        try:
+            self.session.commit()
+            return new_person.id
+        except IntegrityError as e:
+            self.session.rollback()
+            print(f"❌ IntegrityError beim Insert: {e}")
+            return None
+        
     def update_person(self, person_id: int, new_values: Dict[str, Any]) -> bool:
         person = self.session.get(Person, person_id)
         if person is None:
@@ -165,6 +196,37 @@ class PersonWithContactHandler:
         person = self.session.get(Person, person_id)
         if person is None or not hasattr(person, column):
             return False
+
+        # Vorherige Werte extrahieren
+        new_title = person.title
+        new_first_name = person.first_name
+        new_last_name = person.last_name
+
+        if column == "title":
+            new_title = value
+        elif column == "first_name":
+            new_first_name = value
+        elif column == "last_name":
+            new_last_name = value
+
+        # Prüfe, ob diese Kombination (title, first_name, last_name) schon existiert (aber andere ID!)
+        stmt = select(Person).where(
+            Person.id != person_id,
+            Person.title == new_title,
+            Person.first_name == new_first_name,
+            Person.last_name == new_last_name
+        )
+        existing = self.session.execute(stmt).scalars().first()
+        if existing:
+            print(f"❌ Abgelehnt: Person mit (title={new_title}, first_name={new_first_name}, last_name={new_last_name}) existiert bereits (ID={existing.id})")
+            return False
+
+        # Keine Kollision → setzen & committen
         setattr(person, column, value)
-        self.session.commit()
-        return True
+        try:
+            self.session.commit()
+            return True
+        except IntegrityError as e:
+            self.session.rollback()
+            print(f"❌ IntegrityError beim Commit: {e}")
+            return False
