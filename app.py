@@ -1426,8 +1426,6 @@ def get_handler_instance(handler_name):
     session = Session()
     return handler_class(session), None
 
-
-
 @app.route("/user_edit/<handler_name>", methods=["GET", "POST"])
 def gui_edit(handler_name):
     handler, error = get_handler_instance(handler_name)
@@ -1455,9 +1453,15 @@ def gui_edit(handler_name):
 
         rows = handler.get_all()
         if not rows:
-            columns = []
+            if hasattr(handler, "get_columns"):
+                columns = handler.get_columns()
+            elif hasattr(handler, "model"):
+                columns = [col.name for col in handler.model.__table__.columns]
+            else:
+                columns = []
         else:
             columns = list(handler.to_dict(rows[0]).keys())
+
 
         return render_template(
             "edit.html",
