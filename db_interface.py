@@ -243,24 +243,6 @@ class AbteilungHandler(AbstractDBHandler):
         self.session = session
         self.model = Abteilung
 
-    def insert_safe(self, data: Dict[str, Any]) -> Optional[int]:
-        try:
-            existing = self.session.execute(
-                select(self.model).where(self.model.name == data.get("name"))
-            ).scalars().first()
-            if existing:
-                print(f"ℹ️ Abteilung existiert bereits mit ID {existing.id}")
-                return existing.id
-            row = self.model(**data)
-            self.session.add(row)
-            self.session.commit()
-            self.session.refresh(row)
-            return row.id
-        except IntegrityError as e:
-            self.session.rollback()
-            print(f"❌ IntegrityError beim insert_safe: {e}")
-            return None
-
 class PersonToAbteilungHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToAbteilung)
