@@ -147,8 +147,9 @@ class PersonWithContactHandler:
         )
         existing_person = self.session.execute(stmt).scalars().first()
         if existing_person:
-            print(f"❌ Person mit (title={person_data.get('title')}, first_name={person_data.get('first_name')}, last_name={person_data.get('last_name')}) existiert bereits (ID={existing_person.id})")
-            return None
+            # Wenn Person schon existiert, gib ihre ID zurück
+            print(f"ℹ️ Person existiert bereits mit ID {existing_person.id}")
+            return existing_person.id
 
         # 2. Person anlegen
         new_person = Person(
@@ -160,7 +161,7 @@ class PersonWithContactHandler:
             image_url=person_data.get("image_url")
         )
 
-        # 3. Kontakte anlegen (optional, wenn contacts übergeben wurden)
+        # 3. Kontakte anlegen (optional)
         if contacts:
             for c in contacts:
                 contact = PersonContact(
@@ -172,7 +173,7 @@ class PersonWithContactHandler:
                 )
                 self.session.add(contact)
 
-        # 4. Daten speichern und Fehler abfangen
+        # 4. Insert versuchen, Fehler abfangen
         self.session.add(new_person)
         try:
             self.session.commit()
