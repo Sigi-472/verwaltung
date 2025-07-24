@@ -143,46 +143,81 @@ class PersonHandler(AbstractDBHandler):
             data["created_at"] = datetime.datetime.utcnow()
         return self.insert_into_db(data)
 
-
-class PersonContactHandler(AbstractDBHandler):
-    def __init__(self, session: Session):
-        super().__init__(session, PersonContact)
-
-
 class AbteilungHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Abteilung)
+
+    def insert_data(self, data: Dict[str, Any]) -> int:
+        return self.insert_into_db(data)
+
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        return self.set_row(id_, new_values)
 
 
 class PersonToAbteilungHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToAbteilung)
 
+    def insert_data(self, data: Dict[str, Any]) -> int:
+        return self.insert_into_db(data)
+
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        return self.set_row(id_, new_values)
+
 
 class BuildingHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Building)
+
+    def insert_data(self, data: Dict[str, Any]) -> int:
+        return self.insert_into_db(data)
+
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        return self.set_row(id_, new_values)
 
 
 class RoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Room)
 
+    def insert_data(self, data: Dict[str, Any]) -> int:
+        return self.insert_into_db(data)
+
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        return self.set_row(id_, new_values)
+
 
 class PersonToRoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToRoom)
+
+    def insert_data(self, data: Dict[str, Any]) -> int:
+        return self.insert_into_db(data)
+
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        return self.set_row(id_, new_values)
 
 
 class TransponderHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Transponder)
 
+    def insert_data(self, data: Dict[str, Any]) -> int:
+        return self.insert_into_db(data)
+
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        return self.set_row(id_, new_values)
+
 
 class TransponderToRoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, TransponderToRoom)
 
+    def insert_data(self, data: Dict[str, Any]) -> int:
+        return self.insert_into_db(data)
+
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        return self.set_row(id_, new_values)
 
 
 class PersonWithContactHandler:
