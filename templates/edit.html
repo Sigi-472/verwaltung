@@ -1,43 +1,86 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>{{ handler }} bearbeiten</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #999;
+            padding: 0.25rem 0.5rem;
+            text-align: left;
+        }
+        input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        form.inline-form {
+            margin: 0;
+        }
+        .message {
+            padding: 0.5rem;
+            background-color: #dfd;
+            border: 1px solid #9c9;
+            margin-bottom: 1rem;
+        }
+    </style>
 </head>
 <body>
     <h1>Tabelle: {{ handler }}</h1>
+
     {% if message %}
-        <p class="message">{{ message }}</p>
+    <p class="message">{{ message }}</p>
     {% endif %}
 
     <table>
         <thead>
             <tr>
                 {% for col in columns %}
-                    <th>{{ col }}</th>
+                <th>{{ col }}</th>
                 {% endfor %}
+                <th>Aktion</th>
             </tr>
         </thead>
         <tbody>
-            {% for row in rows %}
-                <tr>
+            <!-- Neue leere Zeile für Insert -->
+            <tr>
+                <form method="POST" class="inline-form">
                     {% for col in columns %}
-                        <td>{{ row.to_dict()[col] }}</td>
+                    <td>
+                        <input type="text" name="{{ col }}" id="new_{{ col }}" value="{{ empty_row[col] }}" />
+                    </td>
                     {% endfor %}
-                </tr>
+                    <td>
+                        <input type="hidden" name="row_action" value="insert" />
+                        <input type="hidden" name="row_id" value="" />
+                        <input type="submit" value="Neu speichern" />
+                    </td>
+                </form>
+            </tr>
+
+            <!-- Bestehende Zeilen zum Editieren -->
+            {% for row in rows %}
+            <tr>
+                <form method="POST" class="inline-form">
+                    {% set row_dict = handler_obj.to_dict(row) %}
+                    {% for col in columns %}
+                    <td>
+                        <input type="text" name="{{ col }}" id="row_{{ row_dict['id'] }}_{{ col }}" value="{{ row_dict[col] }}" />
+                    </td>
+                    {% endfor %}
+                    <td>
+                        <input type="hidden" name="row_action" value="update" />
+                        <input type="hidden" name="row_id" value="{{ row_dict['id'] }}" />
+                        <input type="submit" value="Speichern" />
+                    </td>
+                </form>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
-
-    <h2>Neuen Eintrag hinzufügen oder aktualisieren</h2>
-    <form method="POST">
-        {% for col in columns %}
-            <label for="{{ col }}">{{ col }}</label>
-            <input type="text" name="{{ col }}" id="{{ col }}">
-            <br>
-        {% endfor %}
-        <input type="submit" value="Speichern">
-    </form>
 </body>
 </html>

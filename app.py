@@ -1426,6 +1426,7 @@ def get_handler_instance(handler_name):
     session = Session()
     return handler_class(session), None
 
+
 @app.route("/user_edit/<handler_name>", methods=["GET", "POST"])
 def gui_edit(handler_name):
     handler, error = get_handler_instance(handler_name)
@@ -1433,29 +1434,59 @@ def gui_edit(handler_name):
         return f"<h1>{error}</h1>", 404
 
     message = None
-    if request.method == "POST":
-        form_data = dict(request.form)
-        obj_id = form_data.pop("id", None)
-        try:
-            if obj_id:
-                success = handler.update_by_id(int(obj_id), form_data)
-                message = f"Eintrag {obj_id} aktualisiert." if success else "Update fehlgeschlagen."
-            else:
-                inserted_id = handler.insert_data(form_data)
-                message = f"Neuer Eintrag eingefügt mit ID {inserted_id}"
-        except Exception as e:
-            message = f"Fehler: {e}"
 
     try:
         if not hasattr(handler, "get_all"):
             return f"<h1>Handler {handler_name} unterstützt kein get_all()</h1>", 400
+
+        if request.method == "POST":
+            form = request.form.to_dict(flat=False)
+            # flat=False um alle Mehrfachwerte pro key als Liste zu bekommen
+
+            # Wir erwarten ein verstecktes Feld "row_action" (update oder insert)
+            # und "row_id" (id oder empty)
+            row_action = form.get("row_action", [None])[0]
+            row_id = form.get("row_id", [None])[0]
+
+            # Alle Spalten außer row_action und row_id sind Datenfelder
+            data = {}
+            for key, values in form.items():
+                if key in ("row_action", "row_id"):
+                    continue
+                # Wir nehmen den ersten Wert (keine Mehrfachwerte erwartet)
+                data[key] = values[0] if values else None
+
+            try:
+                if row_action == "update" and row_id:
+                    success = handler.update_by_id(int(row_id), data)
+                    message = f"Eintrag {row_id} aktualisiert." if success else "Update fehlgeschlagen."
+                elif row_action == "insert":
+                    inserted_id = handler.insert_data(data)
+                    message = f"Neuer Eintrag eingefügt mit ID {inserted_id}"
+                else:
+                    message = "Ungültige Aktion."
+            except Exception as e:
+                message = f"Fehler beim Speichern: {e}"
+
         rows = handler.get_all()
         if not rows:
             columns = []
         else:
+            # Annahme: handler.to_dict(row) liefert dict aller Spalten
             columns = list(handler.to_dict(rows[0]).keys())
 
-        return render_template("edit.html", handler=handler_name, rows=rows, columns=columns, message=message)
+        # Für neue Einträge: leere Felder
+        empty_row = {col: "" for col in columns}
+
+        return render_template(
+            "edit.html",
+            handler=handler_name,
+            rows=rows,
+            columns=columns,
+            message=message,
+            empty_row=empty_row,
+            handler_obj=handler
+        )
     finally:
         handler.session.close()
 
