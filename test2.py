@@ -1,11 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from db_interface import (
-    PersonHandler, PersonContactHandler, AbteilungHandler, PersonToAbteilungHandler,
-    BuildingHandler, RoomHandler, PersonToRoomHandler, TransponderHandler, TransponderToRoomHandler
-)
+from db_interface import PersonWithContactHandler
 
-DATABASE_URL = "sqlite:///database.db"  # Oder dein PostgreSQL/MySQL-String
+DATABASE_URL = "sqlite:///database.db"  # Oder PostgreSQL/MySQL
 engine = create_engine(DATABASE_URL, echo=False, future=True)
 Session = sessionmaker(bind=engine)
 
@@ -14,11 +11,9 @@ def main():
     session = Session()
 
     try:
-        person_mgr = PersonHandler(session)
-        contact_mgr = PersonContactHandler(session)
-        abt_mgr = AbteilungHandler(session)
+        person_mgr = PersonWithContactHandler(session)
 
-        # Person einfügen
+        # Person + Kontakte einfügen
         person_data = {
             "title": "Prof.",
             "first_name": "Alan",
@@ -27,25 +22,30 @@ def main():
             "image_url": None
         }
 
-        person_id = person_mgr.insert_person(person_data)
+        contacts = [
+            {
+                "email": "alan.turing@example.com",
+                "phone": None,
+                "fax": None,
+                "comment": None
+            },
+            {
+                "email": "a.turing@uni.cam.ac.uk",
+                "phone": "+44-12345678",
+                "fax": None,
+                "comment": "Uni-Adresse"
+            }
+        ]
+
+        person_id = person_mgr.insert_person_with_contacts(person_data, contacts)
         print("Person-ID:", person_id)
 
-        # Contact einfügen
-        contact_id = contact_mgr.insert_into_db({
-            "person_id": person_id,
-            "email": "alan.turing@example.com",
-            "phone": None,
-            "fax": None,
-            "comment": None
-        })
-        print("Contact-ID:", contact_id)
-
-        # Spalte setzen
-        success = person_mgr.set_column(person_id, "title", "Dr.")
+        # Einzelne Spalte setzen
+        success = person_mgr.update_person_column(person_id, "title", "Dr.")
         print("Titel aktualisiert:", success)
 
         # Ganze Zeile setzen
-        updated = person_mgr.set_row(person_id, {
+        updated = person_mgr.update_person(person_id, {
             "comment": "Mathematiker",
             "image_url": "https://example.com/turing.jpg"
         })
@@ -57,4 +57,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
