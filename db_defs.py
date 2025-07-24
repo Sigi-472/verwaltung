@@ -5,7 +5,23 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.orm import declarative_base, relationship, Session, class_mapper, RelationshipProperty, aliased, joinedload
 
-Base = declarative_base()
+class CustomBase:
+    def to_dict(self, recursive=False):
+        try:
+            result = {col.name: getattr(self, col.name) for col in self.__table__.columns}
+            if recursive:
+                for rel in self.__mapper__.relationships:
+                    val = getattr(self, rel.key)
+                    if isinstance(val, list):
+                        result[rel.key] = [x.to_dict(recursive=False) if hasattr(x, 'to_dict') else {} for x in val]
+                    elif val is not None:
+                        result[rel.key] = val.to_dict(recursive=False) if hasattr(val, 'to_dict') else {}
+            return result
+        except Exception as e:
+            print(f"❌ Fehler bei to_dict: {e}")
+            return {}
+
+Base = declarative_base(cls=CustomBase)
 
 class Person(Base):
     __tablename__ = "person"
