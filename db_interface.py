@@ -20,19 +20,31 @@ class AbstractDBHandler:
             print(f"❌ Fehler bei get_row: {e}")
             return None
 
-    def _safe_insert(self, model, data: Dict[str, Any]) -> Optional[int]:
+    def _get_row_by_values(self, data: Dict[str, Any]) -> Optional[Any]:
         try:
-            existing_row = self._get_row_by_values(model, data)
+            query = select(self.model)
+            for k, v in data.items():
+                if v is not None:
+                    query = query.where(getattr(self.model, k) == v)
+            result = self.session.execute(query).scalars().first()
+            return result
+        except Exception as e:
+            print(f"❌ Fehler bei _get_row_by_values: {e}")
+            return None
+
+    def _safe_insert(self, data: Dict[str, Any]) -> Optional[int]:
+        try:
+            existing_row = self._get_row_by_values(data)
             if existing_row is not None:
                 return existing_row.id
-            row = model(**data)
+            row = self.model(**data)
             self.session.add(row)
             self.session.commit()
             self.session.refresh(row)
             return row.id
         except IntegrityError as e:
             self.session.rollback()
-            existing_row = self._get_row_by_values(model, data)
+            existing_row = self._get_row_by_values(data)
             if existing_row is not None:
                 return existing_row.id
             print(f"❌ IntegrityError beim _safe_insert: {e}")
@@ -42,9 +54,9 @@ class AbstractDBHandler:
             print(f"❌ Fehler bei _safe_insert: {e}")
             return None
 
-    def insert_data(self, model, data: Dict[str, Any]) -> Optional[int]:
+    def insert_data(self, data: Dict[str, Any]) -> Optional[int]:
         try:
-            return self._safe_insert(model, data)
+            return self._safe_insert(data)
         except Exception as e:
             print(f"❌ Fehler bei insert_data: {e}")
             return None
@@ -253,118 +265,26 @@ class PersonToAbteilungHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToAbteilung)
 
-    def insert_data(self, data: Dict[str, Any]) -> int:
-        return self.insert_into_db(data)
-
-    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        return self.set_row(id_, new_values)
-
 class BuildingHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Building)
-
-    def insert_data(self, data: Dict[str, Any]) -> int:
-        return self.insert_into_db(data)
-
-    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        return self.set_row(id_, new_values)
 
 class RoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Room)
 
-    def insert_data(self, data: Dict[str, Any]) -> int:
-        return self.insert_into_db(data)
-
-    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        return self.set_row(id_, new_values)
-
 class PersonToRoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToRoom)
-
-    def insert_data(self, data: Dict[str, Any]) -> int:
-        return self.insert_into_db(data)
-
-    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        return self.set_row(id_, new_values)
 
 class TransponderHandler:
     def __init__(self, session: Session):
         self.session = session
         self.model = Transponder  # Dein SQLAlchemy-Modell
 
-    def insert_data(self, data: Dict[str, Any]) -> Optional[int]:
-        """
-        Insertet einen Transponder, falls die Seriennummer nicht existiert.
-        Gibt die ID des existierenden oder neu erstellten Transponders zurück.
-        """
-        try:
-            # Prüfen, ob Seriennummer bereits existiert
-            existing = self.session.execute(
-                select(self.model).where(self.model.serial_number == data.get("serial_number"))
-            ).scalars().first()
-            if existing:
-                print(f"ℹ️ Transponder mit Seriennummer '{data.get('serial_number')}' existiert bereits (ID={existing.id})")
-                return existing.id
-
-            # Neu anlegen
-            row = self.model(**data)
-            self.session.add(row)
-            self.session.commit()
-            self.session.refresh(row)
-            return row.id
-        except IntegrityError as e:
-            self.session.rollback()
-            print(f"❌ IntegrityError beim insert_data: {e}")
-            return None
-        except Exception as e:
-            self.session.rollback()
-            print(f"❌ Fehler beim insert_data: {e}")
-            return None
-
-    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        """
-        Update eines Transponders anhand seiner ID.
-        Prüft vor Update auf eindeutige Seriennummer.
-        """
-        try:
-            row = self.session.get(self.model, id_)
-            if row is None:
-                print(f"❌ Kein Transponder mit ID {id_} gefunden")
-                return False
-
-            if "serial_number" in new_values:
-                existing = self.session.execute(
-                    select(self.model).where(
-                        self.model.serial_number == new_values["serial_number"],
-                        self.model.id != id_
-                    )
-                ).scalars().first()
-                if existing:
-                    print(f"❌ Abgelehnt: Transponder mit Seriennummer '{new_values['serial_number']}' existiert bereits (ID={existing.id})")
-                    return False
-
-            for k, v in new_values.items():
-                if hasattr(row, k):
-                    setattr(row, k, v)
-
-            self.session.commit()
-            return True
-        except Exception as e:
-            self.session.rollback()
-            print(f"❌ Fehler bei update_by_id: {e}")
-            return False
-
 class TransponderToRoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, TransponderToRoom)
-
-    def insert_data(self, data: Dict[str, Any]) -> int:
-        return self.insert_into_db(data)
-
-    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        return self.set_row(id_, new_values)
 
 class PersonWithContactHandler(AbstractDBHandler):
     def __init__(self, session: Session):
@@ -378,18 +298,6 @@ class PersonWithContactHandler(AbstractDBHandler):
         except Exception as e:
             print(f"❌ Fehler bei get_all in PersonWithContactHandler: {e}")
             return []
-
-    def _get_row_by_values(self, model, data: Dict[str, Any]) -> Optional[Any]:
-        try:
-            query = select(model)
-            for k, v in data.items():
-                if v is not None:
-                    query = query.where(getattr(model, k) == v)
-            result = self.session.execute(query).scalars().first()
-            return result
-        except Exception as e:
-            print(f"❌ Fehler bei _get_row_by_values: {e}")
-            return None
 
     def insert_person_with_contacts(self, person_data: dict, contacts: List[dict]) -> Optional[int]:
         try:

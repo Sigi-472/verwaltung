@@ -1469,7 +1469,7 @@ def gui_edit(handler_name):
                         success = handler.update_by_id(int(obj_id), form_data)
                         message = f"Eintrag {obj_id} aktualisiert." if success else "Update fehlgeschlagen."
                     else:
-                        inserted_id = handler.insert_data(handler.model, form_data)
+                        inserted_id = handler.insert_data(form_data)
                         message = f"Neuer Eintrag eingefügt mit ID {inserted_id}"
             except Exception as e:
                 message = f"Fehler: {e}"
