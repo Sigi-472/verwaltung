@@ -1,58 +1,131 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from db_interface import PersonWithContactHandler
+from db_interface import (
+    PersonWithContactHandler,
+    AbteilungHandler,
+    PersonToAbteilungHandler,
+    BuildingHandler,
+    RoomHandler,
+    PersonToRoomHandler,
+    TransponderHandler,
+    TransponderToRoomHandler,
+)
 
 DATABASE_URL = "sqlite:///database.db"  # Oder PostgreSQL/MySQL
 engine = create_engine(DATABASE_URL, echo=False, future=True)
 Session = sessionmaker(bind=engine)
 
 
-def main():
+def test_handler(handler_class, test_data_insert, test_update_data, name: str):
+    print(f"\nTeste {name}...")
+
     session = Session()
-
     try:
-        person_mgr = PersonWithContactHandler(session)
+        handler = handler_class(session)
 
-        # Person + Kontakte einfügen
-        person_data = {
-            "title": "Prof.",
-            "first_name": "Alan",
-            "last_name": "Turing",
-            "comment": "Informatikpionier",
-            "image_url": None
-        }
+        # Insert
+        inserted_id = None
+        try:
+            inserted_id = handler.insert_data(test_data_insert)
+            print(f"-> Eintrag eingefügt mit ID: {inserted_id}")
+        except Exception as e:
+            print(f"Fehler beim Einfügen: {e}")
 
-        contacts = [
-            {
-                "email": "alan.turing@example.com",
-                "phone": None,
-                "fax": None,
-                "comment": None
-            },
-            {
-                "email": "a.turing@uni.cam.ac.uk",
-                "phone": "+44-12345678",
-                "fax": None,
-                "comment": "Uni-Adresse"
-            }
-        ]
-
-        person_id = person_mgr.insert_person_with_contacts(person_data, contacts)
-        print("Person-ID:", person_id)
-
-        # Einzelne Spalte setzen
-        success = person_mgr.update_person_column(person_id, "title", "Dr.")
-        print("Titel aktualisiert:", success)
-
-        # Ganze Zeile setzen
-        updated = person_mgr.update_person(person_id, {
-            "comment": "Mathematiker",
-            "image_url": "https://example.com/turing.jpg"
-        })
-        print("Daten aktualisiert:", updated)
+        # Update (falls Insert erfolgreich)
+        if inserted_id is not None:
+            try:
+                success = handler.update_by_id(inserted_id, test_update_data)
+                print(f"-> Update erfolgreich: {success}")
+            except Exception as e:
+                print(f"Fehler beim Update: {e}")
 
     finally:
         session.close()
+
+
+def main():
+    # Testdaten für alle Handler (bitte an dein Schema anpassen!)
+
+    test_person_contact_insert = {
+        "title": "Herr",
+        "first_name": "Max",
+        "last_name": "Mustermann",
+        "comment": "Testperson",
+        "image_url": None,
+    }
+    test_person_contact_update = {
+        "comment": "Geänderte Testperson",
+        "title": "Dr."
+    }
+
+    test_abteilung_insert = {
+        "name": "IT-Abteilung",
+        "beschreibung": "Verwaltet IT Systeme"
+    }
+    test_abteilung_update = {
+        "beschreibung": "Geänderte Beschreibung"
+    }
+
+    test_p_to_a_insert = {
+        "person_id": 1,  # Dummy ID, ggf. anpassen!
+        "abteilung_id": 1
+    }
+    test_p_to_a_update = {
+        # z.B. nur Kommentar, wenn Feld vorhanden
+        # hier kein Beispiel, ggf. leer lassen
+    }
+
+    test_building_insert = {
+        "name": "Hauptgebäude",
+        "address": "Musterstraße 1"
+    }
+    test_building_update = {
+        "address": "Geänderte Adresse 2"
+    }
+
+    test_room_insert = {
+        "building_id": 1,
+        "name": "Konferenzraum 101",
+        "capacity": 20
+    }
+    test_room_update = {
+        "capacity": 25
+    }
+
+    test_p_to_room_insert = {
+        "person_id": 1,
+        "room_id": 1
+    }
+    test_p_to_room_update = {
+        # ggf. keine Felder zum updaten
+    }
+
+    test_transponder_insert = {
+        "transponder_id": "TR-123456",
+        "comment": "Testtransponder"
+    }
+    test_transponder_update = {
+        "comment": "Geänderter Kommentar"
+    }
+
+    test_t_to_room_insert = {
+        "transponder_id": 1,
+        "room_id": 1
+    }
+    test_t_to_room_update = {
+        # ggf. leer
+    }
+
+    # Tests ausführen
+
+    test_handler(PersonWithContactHandler, test_person_contact_insert, test_person_contact_update, "PersonWithContactHandler")
+    test_handler(AbteilungHandler, test_abteilung_insert, test_abteilung_update, "AbteilungHandler")
+    test_handler(PersonToAbteilungHandler, test_p_to_a_insert, test_p_to_a_update, "PersonToAbteilungHandler")
+    test_handler(BuildingHandler, test_building_insert, test_building_update, "BuildingHandler")
+    test_handler(RoomHandler, test_room_insert, test_room_update, "RoomHandler")
+    test_handler(PersonToRoomHandler, test_p_to_room_insert, test_p_to_room_update, "PersonToRoomHandler")
+    test_handler(TransponderHandler, test_transponder_insert, test_transponder_update, "TransponderHandler")
+    test_handler(TransponderToRoomHandler, test_t_to_room_insert, test_t_to_room_update, "TransponderToRoomHandler")
 
 
 if __name__ == "__main__":
