@@ -155,6 +155,7 @@ class AbstractDBHandler:
             return []
 
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        print(new_values)
         """
         Aktualisiert eine Zeile anhand der ID mit neuen Werten.
         Gibt True zurück, wenn erfolgreich, sonst False.
@@ -185,7 +186,7 @@ class PersonHandler(AbstractDBHandler):
             data["created_at"] = datetime.datetime.utcnow()
         return self.insert_into_db(data)
 
-class AbteilungHandler:
+class AbteilungHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         self.session = session
         self.model = Abteilung
@@ -207,32 +208,6 @@ class AbteilungHandler:
             self.session.rollback()
             print(f"❌ IntegrityError beim insert_safe: {e}")
             return None
-
-    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        try:
-            row = self.session.get(self.model, id_)
-            if row is None:
-                return False
-            # Achtung: Unique-Feld 'name' prüfen vor Update
-            if "name" in new_values:
-                existing = self.session.execute(
-                    select(self.model).where(
-                        self.model.name == new_values["name"],
-                        self.model.id != id_
-                    )
-                ).scalars().first()
-                if existing:
-                    print(f"❌ Abgelehnt: Abteilung mit Name '{new_values['name']}' existiert bereits (ID={existing.id})")
-                    return False
-            for k, v in new_values.items():
-                if hasattr(row, k):
-                    setattr(row, k, v)
-            self.session.commit()
-            return True
-        except Exception as e:
-            self.session.rollback()
-            print(f"❌ Fehler bei update_by_id: {e}")
-            return False
 
 class PersonToAbteilungHandler(AbstractDBHandler):
     def __init__(self, session: Session):
@@ -353,7 +328,7 @@ class TransponderToRoomHandler(AbstractDBHandler):
 
 class PersonWithContactHandler(AbstractDBHandler):
     def __init__(self, session: Session):
-        self.session = session
+        super().__init__(session, Person)
 
     def get_all(self) -> List[Any]:
         try:
