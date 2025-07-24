@@ -6,6 +6,7 @@ import os
 import subprocess
 from datetime import date
 from copy import deepcopy
+import csv
 
 try:
     import venv
@@ -114,6 +115,194 @@ WIZARDS["transponder"] = {
 }
 
 EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
+
+def parse_buildings_csv(csv_text):
+    session = Session()
+
+    if not isinstance(csv_text, str):
+        raise TypeError("csv_text muss ein String sein")
+    if not csv_text.strip():
+        raise ValueError("csv_text ist leer")
+
+    csv_io = io.StringIO(csv_text)
+    reader = csv.reader(csv_io, delimiter=',', quotechar='"')
+
+    header_found = False
+
+    for row in reader:
+        if len(row) != 2:
+            continue
+
+        if not header_found:
+            # Prüfen, ob erste Zeile die Header ist
+            if row[0].strip().lower() == "gebaeude_name" and row[1].strip().lower() == "abkuerzung":
+                header_found = True
+                continue  # Header überspringen
+            else:
+                raise ValueError("Ungültige Header-Zeile: " + str(row))
+
+        gebaeude_name = row[0].strip()
+        abkuerzung = row[1].strip()
+
+        if not gebaeude_name or not abkuerzung:
+            continue  # Zeile überspringen, wenn leer
+
+        building_insert = {
+            "name": gebaeude_name,
+            "abkuerzung": abkuerzung
+        }
+
+        handler = BuildingHandler(session)
+        handler.insert_data(building_insert)
+
+def insert_tu_dresden_buildings ():
+    csv_input = '''gebaeude_name,abkuerzung
+"Abstellgeb."," Pienner Str. 38a"
+"Andreas-Pfitzmann-Bau","APB"
+"Andreas-Schubert-Bau","ASB"
+"August-Bebel-Straße","ABS"
+"Bamberger Str. 1","B01"
+"Barkhausen-Bau","BAR"
+"Beamtenhaus"," Pienner Str. 21"
+"Bergstr. 69","B69"
+"Berndt-Bau","BER"
+"Beyer-Bau","BEY"
+"Binder-Bau","BIN"
+"Bioinnovationszentrum","BIZ"
+"Biologie","BIO"
+"Boselgarten Coswig","BOS"
+"Botanischer Garten","BOT"
+"Breitscheidstr. 78-82"," OT Dobritz"
+"Bürogebäude Strehlener Str. 22"," 24"
+"Bürogebäude Zellescher Weg 17","BZW"
+"Chemie","CHE"
+"Cotta-Bau","COT"
+"Drude-Bau","DRU"
+"Dürerstr. 24","DÜR"
+"Fahrzeugversuchszentrum","FVZ"
+"Falkenbrunnen","FAL"
+"Forstbotanischer Garten","FBG"
+"Forsttechnik"," Dresdner Str. 24"
+"Fraunhofer IWS","FIWS"
+"Freital"," Tharandter Str. 7"
+"Frenzel-Bau","FRE"
+"Fritz-Foerster-Bau","FOE"
+"Fritz-Löffler-Str. 10a","L10"
+"Georg-Schumann-Bau","SCH"
+"Georg-Schumannstr. 7a","S7A"
+"Graduiertenakademie","M07"
+"GrillCube","GCUB"
+"Görges-Bau","GÖR"
+"Günther-Landgraf-Bau","GLB"
+"Halle Nickern","NIC"
+"Hallwachsstr. 3","HAL"
+"Hauptgebäude"," Pienner Str. 8"
+"Haus 2","U0002"
+"Haus 4","U0004"
+"Haus 5","U0105"
+"Haus 7","U0007"
+"Haus 9","U0009"
+"Haus 11","U0011"
+"Haus 13","U0013"
+"Haus 15","U0015"
+"Haus 17","U0017"
+"Haus 19","U0019"
+"Haus 21a","U0021A"
+"Haus 22","U0022"
+"Haus 25","U0025"
+"Haus 27","U0027"
+"Haus 29","U0029"
+"Haus 31","U0031"
+"Haus 33","U0033"
+"Haus 38","U0038"
+"Haus 41","U0041"
+"Haus 44","U0044"
+"Haus 47","U0047"
+"Haus 50","U0050"
+"Haus 53","U0053"
+"Haus 58","U0058"
+"Haus 60","U0060"
+"Haus 62","U0062"
+"Haus 66","U0066"
+"Haus 69","U0069"
+"Haus 71","U0071"
+"Haus 81","U0081"
+"Haus 83","U0083"
+"Haus 90","U0090"
+"Haus 97","U0097"
+"Haus 111","U0111"
+"Heidebroek-Bau","HEI"
+"Heinrich-Schütz-Str. 2","AV1"
+"Helmholtz-Zentrum Dresden-Rossendorf","FZR"
+"Hermann-Krone-Bau","KRO"
+"Hohe Str. 53","H53"
+"Hörsaalzentrum","HSZ"
+"Hülsse-Bau","HÜL"
+"Jante-Bau","JAN"
+"Judeich-Bau","JUD"
+"Kutzbach-Bau","KUT"
+"König-Bau","KÖN"
+"Leichtbau-Innovationszentrum","LIZ"
+"Ludwig-Ermold-Str. 3","E03"
+"Marschnerstr. 30"," 32"
+"Max-Bergmann-Zentrum","MBZ"
+"Mensa","M13"
+"Merkel-Bau","MER"
+"Mierdel-Bau","MIE"
+"Mohr-Bau","MOH"
+"Mollier-Bau","MOL"
+"Mommsenstr. 5","M05"
+"Müller-Bau","MÜL"
+"Neuffer-Bau","NEU"
+"Nöthnitzer Str. 60a","N60"
+"Nöthnitzer Str. 73","N73"
+"Nürnberger Ei","NÜR"
+"Potthoff-Bau","POT"
+"Prozess-Entwicklungszentrum","PEZ"
+"Recknagel-Bau","REC"
+"Rektorat"," Mommsenstr. 11"
+"Rossmässler-Bau","ROS"
+"Sachsenberg-Bau","SAC"
+"Scharfenberger Str. 152"," OT Kaditz"
+"Schweizer Str. 3","SWS"
+"Seminargebäude 1","SE1"
+"Seminargebäude 2","SE2"
+"Semperstr. 14","SEM"
+"Stadtgutstr. 10 Fahrbereitschaft","STA"
+"Stöckhardt-Bau","STÖ"
+"Technische Leitzentrale","TLZ"
+"Textilmaschinenhalle","TEX"
+"Tillich-Bau","TIL"
+"Toepler-Bau","TOE"
+"Trefftz-Bau","TRE"
+"TUD-Information"," Mommsenstr. 9"
+"Verwaltungsgebäude 2 - STURA","VG2"
+"Verwaltungsgebäude 3","VG3"
+"von-Gerber-Bau","GER"
+"von-Mises-Bau","VMB"
+"VVT-Halle","VVT"
+"Walther-Hempel-Bau","HEM"
+"Walther-Pauer-Bau","PAU"
+"Weberplatz","WEB"
+"Weißbachstr. 7","W07"
+"Werner-Hartmann-Bau","WHB"
+"Wiener Str. 48","W48"
+"Willers-Bau","WIL"
+"Windkanal Marschnerstraße 28","WIK"
+"Wohnheim"," Pienner Str. 9"
+"Würzburger Str. 46","WÜR"
+"Zellescher Weg 21","Z21"
+"Zellescher Weg 41c","Z41"
+"Zeltschlösschen","NMEN"
+"Zeuner-Bau","ZEU"
+"Zeunerstr. 1a","ZS1"
+"Übergabestation Nöthnitzer Str. 62a","NOE"
+"ÜS+Trafo Bergstr.","BRG"
+"Bürogebäude Strehlener Str. 14","STR"
+'''
+
+    parse_buildings_csv(csv_input)
+
 
 def is_valid_email(email):
     return bool(EMAIL_REGEX.match(email.strip()))
@@ -1220,4 +1409,6 @@ def transponder_rueckgabe():
     return redirect(url_for("transponder.transponder_form"))
 
 if __name__ == "__main__":
+    insert_tu_dresden_buildings()
+
     app.run(debug=True, port=5000)
