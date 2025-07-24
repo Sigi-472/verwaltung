@@ -56,6 +56,8 @@ try:
     import cryptography
     import aiosqlite
     import datetime
+
+    from db_interface import *
 except ModuleNotFoundError:
     if not VENV_PATH.exists():
         create_and_setup_venv()
@@ -987,7 +989,7 @@ def get_transponder_metadata(transponder_id: int) -> dict:
                     "id": room.building.id,
                     "name": room.building.name,
                     "building_number": room.building.building_number,
-                    "address": room.building.address
+                    "abkuerzung": room.building.abkuerzung
                 }
 
             metadata["rooms"].append(room_data)

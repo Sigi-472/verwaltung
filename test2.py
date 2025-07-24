@@ -104,10 +104,10 @@ def main():
 
     building_insert = {
         "name": "Hauptgebäude",
-        "address": "Musterstraße 1"
+        "abkuerzung": "HG"
     }
     building_update = {
-        "address": "Neue Musterstraße 2"
+        "abkuerzung": "HG2"
     }
 
     room_insert = {

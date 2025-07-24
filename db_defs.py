@@ -107,7 +107,7 @@ class Building(Base):
     id = Column(Integer, primary_key=True)
     name = Column(Text)
     building_number = Column(Text)
-    address = Column(Text)
+    abkuerzung = Column(Text)
     rooms = relationship("Room", back_populates="building")
 
 class Room(Base):
