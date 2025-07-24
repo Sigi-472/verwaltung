@@ -1,4 +1,4 @@
-from sqlalchemy import (create_engine, Column, Integer, String, Text, ForeignKey, Date, Float, TIMESTAMP)
+from sqlalchemy import (create_engine, Column, Integer, String, Text, ForeignKey, Date, Float, TIMESTAMP, UniqueConstraint)
 from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.inspection import inspect
 from sqlalchemy.exc import NoInspectionAvailable
@@ -23,6 +23,10 @@ class Person(Base):
     departments = relationship("Abteilung", back_populates="leiter")
     person_abteilungen = relationship("PersonToAbteilung", back_populates="person", cascade="all, delete")
     professorships = relationship("ProfessorshipToPerson", back_populates="person", cascade="all, delete")
+    
+    __table_args__ = (
+        UniqueConstraint("title", "first_name", "last_name", name="uq_person_name_title"),
+    )
 
 class PersonContact(Base):
     __tablename__ = "person_contact"
@@ -33,6 +37,12 @@ class PersonContact(Base):
     email = Column(Text)
     comment = Column(Text)
     person = relationship("Person", back_populates="contacts")
+    
+    __table_args__ = (
+        UniqueConstraint("person_id", "email", name="uq_contact_person_email"),
+        UniqueConstraint("person_id", "phone", name="uq_contact_person_phone"),
+        UniqueConstraint("person_id", "fax", name="uq_contact_person_fax"),
+    )
 
 class Abteilung(Base):
     __tablename__ = "abteilung"
