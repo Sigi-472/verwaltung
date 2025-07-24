@@ -124,9 +124,17 @@ def main():
     person_to_room_update = {}
 
     transponder_insert = {
-        "code": "TR-123456"  # falls "transponder_id" nicht existiert, z.B. "code"
-        # oder nur Pflichtfelder
+        "serial_number": "SN-123456",   # richtiges Feld
+        "comment": "Erster Transponder",
+        "issuer_id": None,
+        "owner_id": None,
+        "got_date": None,
+        "return_date": None
     }
+    transponder_update = {
+        "comment": "Geänderter Kommentar"
+    }
+
     transponder_update = {
         "comment": "Geändert"
     }
