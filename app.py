@@ -4,9 +4,8 @@ import platform
 import shutil
 import os
 import subprocess
-import random
-from pprint import pprint
 from datetime import date
+from copy import deepcopy
 
 try:
     import venv
@@ -43,7 +42,7 @@ def restart_with_venv():
         sys.exit(1)
 
 try:
-    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file, Blueprint
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file, Blueprint, flash
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker, joinedload, Session
     from sqlalchemy.exc import SQLAlchemyError
@@ -333,7 +332,7 @@ def table_view(table_name):
     if table_has_missing_inputs:
         link = url_for("table_view", table_name=table_name)
         missing_data_messages.append(
-            f'<div class="warning">⚠️ Fehlende Eingabeoptionen für Tabelle</div>'
+            '<div class="warning">⚠️ Fehlende Eingabeoptionen für Tabelle</div>'
         )
 
     return render_template(
@@ -737,8 +736,6 @@ def wizard_person():
 @app.route("/map-editor")
 def map_editor():
     return render_template("map_editor.html")
-
-from copy import deepcopy
 
 @app.route("/wizard/transponder", methods=["GET", "POST"])
 def run_wizard():
@@ -1210,7 +1207,7 @@ def transponder_rueckgabe():
         session.commit()
         flash("Transponder erfolgreich zurückgenommen.", "success")
     except Exception as e:
-        db.session.rollback()
+        session.rollback()
         flash(f"Fehler bei Rückgabe: {str(e)}", "danger")
 
     return redirect(url_for("transponder.transponder_form"))
