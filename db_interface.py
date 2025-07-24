@@ -154,7 +154,25 @@ class AbstractDBHandler:
             print(f"❌ Fehler bei get_all: {e}")
             return []
 
-
+    def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
+        """
+        Aktualisiert eine Zeile anhand der ID mit neuen Werten.
+        Gibt True zurück, wenn erfolgreich, sonst False.
+        """
+        try:
+            row = self.get_row(id_)
+            if row is None:
+                print(f"❌ update_by_id: Kein Eintrag mit id={id_} gefunden.")
+                return False
+            for key, value in new_values.items():
+                if hasattr(row, key):
+                    setattr(row, key, value)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei update_by_id: {e}")
+            return False
 
 # Spezifische Klassen
 
@@ -333,7 +351,7 @@ class TransponderToRoomHandler(AbstractDBHandler):
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
         return self.set_row(id_, new_values)
 
-class PersonWithContactHandler:
+class PersonWithContactHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         self.session = session
 

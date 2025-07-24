@@ -1426,41 +1426,6 @@ def get_handler_instance(handler_name):
     session = Session()
     return handler_class(session), None
 
-@app.route("/api/<handler_name>", methods=["GET", "POST", "PUT"])
-def api_handler(handler_name):
-    handler, error = get_handler_instance(handler_name)
-    if error:
-        return jsonify({"error": error}), 404
-
-    if request.method == "GET":
-        try:
-            if hasattr(handler, "get_all"):
-                data = handler.get_all()
-                return jsonify([row.to_dict() for row in data])
-            else:
-                return jsonify({"error": f"{handler_name} unterstützt get_all() nicht"}), 400
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    elif request.method == "POST":
-        try:
-            json_data = request.json
-            inserted_id = handler.insert_data(json_data)
-            return jsonify({"inserted_id": inserted_id}), 201
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    elif request.method == "PUT":
-        try:
-            json_data = request.json
-            obj_id = json_data.get("id")
-            if obj_id is None:
-                return jsonify({"error": "Kein ID-Feld vorhanden"}), 400
-            success = handler.update_by_id(obj_id, json_data)
-            return jsonify({"success": success}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
 @app.route("/user_edit/<handler_name>", methods=["GET", "POST"])
 def gui_edit(handler_name):
     handler, error = get_handler_instance(handler_name)
