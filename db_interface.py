@@ -193,8 +193,6 @@ class AbteilungHandler:
             print(f"❌ Fehler bei update_by_id: {e}")
             return False
 
-
-
 class PersonToAbteilungHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToAbteilung)
@@ -204,7 +202,6 @@ class PersonToAbteilungHandler(AbstractDBHandler):
 
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
         return self.set_row(id_, new_values)
-
 
 class BuildingHandler(AbstractDBHandler):
     def __init__(self, session: Session):
@@ -216,7 +213,6 @@ class BuildingHandler(AbstractDBHandler):
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
         return self.set_row(id_, new_values)
 
-
 class RoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Room)
@@ -227,7 +223,6 @@ class RoomHandler(AbstractDBHandler):
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
         return self.set_row(id_, new_values)
 
-
 class PersonToRoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToRoom)
@@ -237,7 +232,6 @@ class PersonToRoomHandler(AbstractDBHandler):
 
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
         return self.set_row(id_, new_values)
-
 
 class TransponderHandler:
     def __init__(self, session: Session):
@@ -306,7 +300,6 @@ class TransponderHandler:
             print(f"❌ Fehler bei update_by_id: {e}")
             return False
 
-
 class TransponderToRoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, TransponderToRoom)
@@ -316,7 +309,6 @@ class TransponderToRoomHandler(AbstractDBHandler):
 
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
         return self.set_row(id_, new_values)
-
 
 class PersonWithContactHandler:
     def __init__(self, session: Session):
