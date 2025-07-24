@@ -74,7 +74,7 @@ class PersonContact(Base):
     __table_args__ = (
         UniqueConstraint("person_id", "email", name="uq_contact_person_email"),
         UniqueConstraint("person_id", "phone", name="uq_contact_person_phone"),
-        UniqueConstraint("person_id", "fax", name="uq_contact_person_fax"),
+       UniqueConstraint("person_id", "fax", name="uq_contact_person_fax"),
     )
 
 class Abteilung(Base):
@@ -276,17 +276,3 @@ class RoomLayout(Base):
     height = Column(Integer, nullable=False)
 
     room = relationship("Room", back_populates="layout")
-    snapzones = relationship("Snapzone", back_populates="layout", cascade="all, delete")
-
-class Snapzone(Base):
-    __tablename__ = "snapzone"
-    id = Column(Integer, primary_key=True)
-    layout_id = Column(Integer, ForeignKey("room_layout.id", ondelete="CASCADE"), nullable=False)
-    category_id = Column(Integer, ForeignKey("object_category.id", ondelete="SET NULL"))
-    x = Column(Integer, nullable=False)
-    y = Column(Integer, nullable=False)
-    width = Column(Integer)
-    height = Column(Integer)
-
-    layout = relationship("RoomLayout", back_populates="snapzones")
-    category = relationship("ObjectCategory")
