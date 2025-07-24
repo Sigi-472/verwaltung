@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional, Dict, Any, Type
+from typing import Optional, Dict, Any, Type, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from db_defs import (
@@ -7,54 +7,130 @@ from db_defs import (
     Building, Room, PersonToRoom, Transponder, TransponderToRoom
 )
 from sqlalchemy.exc import IntegrityError
-
 class AbstractDBHandler:
     def __init__(self, session: Session, model: Type):
         self.session = session
         self.model = model
 
     def get_row(self, id: int) -> Optional[Any]:
-        return self.session.get(self.model, id)
+        try:
+            return self.session.get(self.model, id)
+        except Exception as e:
+            print(f"❌ Fehler bei get_row: {e}")
+            return None
 
     def get_id(self, data: Dict[str, Any]) -> Optional[int]:
-        query = select(self.model)
-        for k, v in data.items():
-            if v is not None:
-                query = query.where(getattr(self.model, k) == v)
-        result = self.session.execute(query).scalars().first()
-        if result:
-            return result.id
-        return None
+        try:
+            query = select(self.model)
+            for k, v in data.items():
+                if v is not None:
+                    query = query.where(getattr(self.model, k) == v)
+            result = self.session.execute(query).scalars().first()
+            if result:
+                return result.id
+            return None
+        except Exception as e:
+            print(f"❌ Fehler bei get_id: {e}")
+            return None
 
-    def insert_into_db(self, data: Dict[str, Any]) -> int:
-        id_ = self.get_id(data)
-        if id_ is not None:
-            return id_
+    def insert_into_db(self, data: Dict[str, Any]) -> Optional[int]:
+        existing_id = self.get_id(data)
+        if existing_id is not None:
+            return existing_id
+        try:
+            row = self.model(**data)
+            self.session.add(row)
+            self.session.commit()
+            self.session.refresh(row)
+            return row.id
+        except IntegrityError as e:
+            self.session.rollback()
+            print(f"❌ IntegrityError bei insert_into_db: {e}")
+            # Versuche nochmal existing_id zu holen (Race-Condition möglich)
+            return self.get_id(data)
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei insert_into_db: {e}")
+            return None
 
-        row = self.model(**data)
-        self.session.add(row)
-        self.session.commit()
-        self.session.refresh(row)
-        return row.id
+    def bulk_insert(self, data_list: List[Dict[str, Any]]) -> List[int]:
+        ids = []
+        try:
+            for data in data_list:
+                id_ = self.insert_into_db(data)
+                if id_ is not None:
+                    ids.append(id_)
+            return ids
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei bulk_insert: {e}")
+            return []
 
     def set_column(self, id_: int, column: str, value: Any) -> bool:
-        row = self.get_row(id_)
-        if row is None or not hasattr(row, column):
+        try:
+            row = self.get_row(id_)
+            if row is None or not hasattr(row, column):
+                return False
+            setattr(row, column, value)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei set_column: {e}")
             return False
-        setattr(row, column, value)
-        self.session.commit()
-        return True
 
     def set_row(self, id_: int, new_values: Dict[str, Any]) -> bool:
-        row = self.get_row(id_)
-        if row is None:
+        try:
+            row = self.get_row(id_)
+            if row is None:
+                return False
+            for k, v in new_values.items():
+                if hasattr(row, k):
+                    setattr(row, k, v)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei set_row: {e}")
             return False
-        for k, v in new_values.items():
-            if hasattr(row, k):
-                setattr(row, k, v)
-        self.session.commit()
-        return True
 
+    def get_all(self, filters: Optional[Dict[str, Any]] = None) -> List[Any]:
+        try:
+            query = select(self.model)
+            if filters:
+                for k, v in filters.items():
+                    query = query.where(getattr(self.model, k) == v)
+            result = self.session.execute(query).scalars().all()
+            return result
+        except Exception as e:
+            print(f"❌ Fehler bei get_all: {e}")
+            return []
+
+    def update(self, filters: Dict[str, Any], new_values: Dict[str, Any]) -> int:
+        # return Anzahl der geänderten Zeilen
+        try:
+            stmt = update(self.model)
+            for k, v in filters.items():
+                stmt = stmt.where(getattr(self.model, k) == v)
+            stmt = stmt.values(**new_values)
+            result = self.session.execute(stmt)
+            self.session.commit()
+            return result.rowcount
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei update: {e}")
+            return 0
+
+    def delete(self, id_: int) -> bool:
+        try:
+            stmt = delete(self.model).where(self.model.id == id_)
+            result = self.session.execute(stmt)
+            self.session.commit()
+            return result.rowcount > 0
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei delete: {e}")
+            return False
 
 # Spezifische Klassen
 
@@ -108,26 +184,30 @@ class TransponderToRoomHandler(AbstractDBHandler):
         super().__init__(session, TransponderToRoom)
 
 
+
 class PersonWithContactHandler:
     def __init__(self, session: Session):
         self.session = session
 
     def _get_row_by_values(self, model, data: Dict[str, Any]) -> Optional[Any]:
-        query = select(model)
-        for k, v in data.items():
-            if v is not None:
-                query = query.where(getattr(model, k) == v)
-        result = self.session.execute(query).scalars().first()
-        return result
-
-    def _safe_insert(self, model, data: Dict[str, Any]) -> int:
-        existing_row = self._get_row_by_values(model, data)
-        if existing_row is not None:
-            return existing_row.id
-
-        row = model(**data)
-        self.session.add(row)
         try:
+            query = select(model)
+            for k, v in data.items():
+                if v is not None:
+                    query = query.where(getattr(model, k) == v)
+            result = self.session.execute(query).scalars().first()
+            return result
+        except Exception as e:
+            print(f"❌ Fehler bei _get_row_by_values: {e}")
+            return None
+
+    def _safe_insert(self, model, data: Dict[str, Any]) -> Optional[int]:
+        try:
+            existing_row = self._get_row_by_values(model, data)
+            if existing_row is not None:
+                return existing_row.id
+            row = model(**data)
+            self.session.add(row)
             self.session.commit()
             self.session.refresh(row)
             return row.id
@@ -136,98 +216,146 @@ class PersonWithContactHandler:
             existing_row = self._get_row_by_values(model, data)
             if existing_row is not None:
                 return existing_row.id
-            raise e
+            print(f"❌ IntegrityError beim _safe_insert: {e}")
+            return None
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei _safe_insert: {e}")
+            return None
 
-    def insert_person_with_contacts(self, person_data: dict, contacts: list) -> int | None:
-        # 1. Prüfe, ob Person schon existiert (title, first_name, last_name)
-        stmt = select(Person).where(
-            Person.title == person_data.get("title"),
-            Person.first_name == person_data.get("first_name"),
-            Person.last_name == person_data.get("last_name")
-        )
-        existing_person = self.session.execute(stmt).scalars().first()
-        if existing_person:
-            # Wenn Person schon existiert, gib ihre ID zurück
-            print(f"ℹ️ Person existiert bereits mit ID {existing_person.id}")
-            return existing_person.id
-
-        # 2. Person anlegen
-        new_person = Person(
-            title=person_data.get("title"),
-            first_name=person_data.get("first_name"),
-            last_name=person_data.get("last_name"),
-            created_at=person_data.get("created_at") or datetime.utcnow(),
-            comment=person_data.get("comment"),
-            image_url=person_data.get("image_url")
-        )
-
-        # 3. Kontakte anlegen (optional)
-        if contacts:
-            for c in contacts:
-                contact = PersonContact(
-                    phone=c.get("phone"),
-                    fax=c.get("fax"),
-                    email=c.get("email"),
-                    comment=c.get("comment"),
-                    person=new_person
-                )
-                self.session.add(contact)
-
-        # 4. Insert versuchen, Fehler abfangen
-        self.session.add(new_person)
+    def insert_person_with_contacts(self, person_data: dict, contacts: List[dict]) -> Optional[int]:
         try:
+            stmt = select(Person).where(
+                Person.title == person_data.get("title"),
+                Person.first_name == person_data.get("first_name"),
+                Person.last_name == person_data.get("last_name")
+            )
+            existing_person = self.session.execute(stmt).scalars().first()
+            if existing_person:
+                print(f"ℹ️ Person existiert bereits mit ID {existing_person.id}")
+                return existing_person.id
+
+            new_person = Person(
+                title=person_data.get("title"),
+                first_name=person_data.get("first_name"),
+                last_name=person_data.get("last_name"),
+                created_at=person_data.get("created_at") or datetime.datetime.utcnow(),
+                comment=person_data.get("comment"),
+                image_url=person_data.get("image_url")
+            )
+
+            self.session.add(new_person)
+
+            if contacts:
+                for c in contacts:
+                    contact = PersonContact(
+                        phone=c.get("phone"),
+                        fax=c.get("fax"),
+                        email=c.get("email"),
+                        comment=c.get("comment"),
+                        person=new_person
+                    )
+                    self.session.add(contact)
+
             self.session.commit()
             return new_person.id
         except IntegrityError as e:
             self.session.rollback()
-            print(f"❌ IntegrityError beim Insert: {e}")
+            print(f"❌ IntegrityError beim insert_person_with_contacts: {e}")
             return None
-        
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler beim insert_person_with_contacts: {e}")
+            return None
+
     def update_person(self, person_id: int, new_values: Dict[str, Any]) -> bool:
-        person = self.session.get(Person, person_id)
-        if person is None:
+        try:
+            person = self.session.get(Person, person_id)
+            if person is None:
+                return False
+            for k, v in new_values.items():
+                if hasattr(person, k):
+                    setattr(person, k, v)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei update_person: {e}")
             return False
-        for k, v in new_values.items():
-            if hasattr(person, k):
-                setattr(person, k, v)
-        self.session.commit()
-        return True
 
     def update_person_column(self, person_id: int, column: str, value: Any) -> bool:
-        person = self.session.get(Person, person_id)
-        if person is None or not hasattr(person, column):
-            return False
-
-        # Vorherige Werte extrahieren
-        new_title = person.title
-        new_first_name = person.first_name
-        new_last_name = person.last_name
-
-        if column == "title":
-            new_title = value
-        elif column == "first_name":
-            new_first_name = value
-        elif column == "last_name":
-            new_last_name = value
-
-        # Prüfe, ob diese Kombination (title, first_name, last_name) schon existiert (aber andere ID!)
-        stmt = select(Person).where(
-            Person.id != person_id,
-            Person.title == new_title,
-            Person.first_name == new_first_name,
-            Person.last_name == new_last_name
-        )
-        existing = self.session.execute(stmt).scalars().first()
-        if existing:
-            print(f"❌ Abgelehnt: Person mit (title={new_title}, first_name={new_first_name}, last_name={new_last_name}) existiert bereits (ID={existing.id})")
-            return False
-
-        # Keine Kollision → setzen & committen
-        setattr(person, column, value)
         try:
+            person = self.session.get(Person, person_id)
+            if person is None or not hasattr(person, column):
+                return False
+
+            new_title = person.title
+            new_first_name = person.first_name
+            new_last_name = person.last_name
+
+            if column == "title":
+                new_title = value
+            elif column == "first_name":
+                new_first_name = value
+            elif column == "last_name":
+                new_last_name = value
+
+            stmt = select(Person).where(
+                Person.id != person_id,
+                Person.title == new_title,
+                Person.first_name == new_first_name,
+                Person.last_name == new_last_name
+            )
+            existing = self.session.execute(stmt).scalars().first()
+            if existing:
+                print(f"❌ Abgelehnt: Person mit (title={new_title}, first_name={new_first_name}, last_name={new_last_name}) existiert bereits (ID={existing.id})")
+                return False
+
+            setattr(person, column, value)
             self.session.commit()
             return True
         except IntegrityError as e:
             self.session.rollback()
             print(f"❌ IntegrityError beim Commit: {e}")
             return False
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei update_person_column: {e}")
+            return False
+
+    def delete_person(self, person_id: int) -> bool:
+        try:
+            stmt = delete(Person).where(Person.id == person_id)
+            result = self.session.execute(stmt)
+            self.session.commit()
+            return result.rowcount > 0
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler beim delete_person: {e}")
+            return False
+
+    def get_person_contacts(self, person_id: int) -> List[PersonContact]:
+        try:
+            query = select(PersonContact).where(PersonContact.person_id == person_id)
+            results = self.session.execute(query).scalars().all()
+            return results
+        except Exception as e:
+            print(f"❌ Fehler bei get_person_contacts: {e}")
+            return []
+
+    def add_contact_to_person(self, person_id: int, contact_data: Dict[str, Any]) -> Optional[int]:
+        try:
+            person = self.session.get(Person, person_id)
+            if person is None:
+                print(f"❌ Person mit ID {person_id} nicht gefunden")
+                return None
+
+            contact = PersonContact(**contact_data, person=person)
+            self.session.add(contact)
+            self.session.commit()
+            self.session.refresh(contact)
+            return contact.id
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei add_contact_to_person: {e}")
+            return None
