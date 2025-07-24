@@ -42,11 +42,11 @@ def restart_with_venv():
         sys.exit(1)
 
 try:
-    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file, Blueprint, flash
+    from flask import Flask, request, redirect, url_for, render_template_string, jsonify, send_from_directory, render_template, abort, send_file, flash
     from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker, joinedload, Session
     from sqlalchemy.exc import SQLAlchemyError
-    from db_defs import Base, Person, PersonContact, Building, Room, Transponder, TransponderToRoom, Inventory, Object
+    from db_defs import *
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import NameObject
     import io
