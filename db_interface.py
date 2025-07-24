@@ -1,7 +1,7 @@
 import datetime
 from typing import Optional, Dict, Any, Type, List
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from db_defs import (
     Person, PersonContact, Abteilung, PersonToAbteilung,
     Building, Room, PersonToRoom, Transponder, TransponderToRoom
@@ -19,6 +19,17 @@ class AbstractDBHandler:
         except Exception as e:
             print(f"❌ Fehler bei get_row: {e}")
             return None
+
+    def delete_by_id(self, id: int) -> bool:
+        try:
+            stmt = delete(self.model).where(self.model.id == id)
+            self.session.execute(stmt)
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler beim Löschen: {e}")
+            return False
 
     def get_id(self, data: Dict[str, Any]) -> Optional[int]:
         try:
@@ -471,17 +482,6 @@ class PersonWithContactHandler(AbstractDBHandler):
         except Exception as e:
             self.session.rollback()
             print(f"❌ Fehler bei update_person_column: {e}")
-            return False
-
-    def delete_person(self, person_id: int) -> bool:
-        try:
-            stmt = delete(Person).where(Person.id == person_id)
-            result = self.session.execute(stmt)
-            self.session.commit()
-            return result.rowcount > 0
-        except Exception as e:
-            self.session.rollback()
-            print(f"❌ Fehler beim delete_person: {e}")
             return False
 
     def get_person_contacts(self, person_id: int) -> List[PersonContact]:
