@@ -339,13 +339,6 @@ class PersonWithContactHandler(AbstractDBHandler):
             print(f"❌ Fehler bei get_all in PersonWithContactHandler: {e}")
             return []
 
-    def to_dict(self, instance: Any) -> Dict[str, Any]:
-        try:
-            return {col.name: getattr(instance, col.name) for col in instance.__table__.columns}
-        except Exception as e:
-            print(f"❌ Fehler bei to_dict in PersonWithContactHandler: {e}")
-            return {}
-
     def _get_row_by_values(self, model, data: Dict[str, Any]) -> Optional[Any]:
         try:
             query = select(model)
