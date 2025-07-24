@@ -4,15 +4,6 @@
     <meta charset="UTF-8" />
     <title>{{ handler }} bearbeiten</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-    <style>
-        table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; }
-        input[type=text] { width: 100%; box-sizing: border-box; }
-        .message { color: green; font-weight: bold; }
-        .error { color: red; font-weight: bold; }
-        form.inline { display: inline; margin: 0; padding: 0; }
-        td.id-col { background-color: #f0f0f0; font-weight: bold; }
-        input[type=submit] { cursor: pointer; }
-    </style>
 </head>
 <body>
     <h1>Tabelle: {{ handler }}</h1>

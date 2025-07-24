@@ -541,3 +541,10 @@ class PersonWithContactHandler(AbstractDBHandler):
             self.session.rollback()
             print(f"❌ Fehler bei add_contact_to_person: {e}")
             return None
+
+    def insert_data(self, model, data: Dict[str, Any]) -> Optional[int]:
+        try:
+            return self._safe_insert(model, data)
+        except Exception as e:
+            print(f"❌ Fehler bei insert_data: {e}")
+            return None
