@@ -20,6 +20,35 @@ class AbstractDBHandler:
             print(f"❌ Fehler bei get_row: {e}")
             return None
 
+    def _safe_insert(self, model, data: Dict[str, Any]) -> Optional[int]:
+        try:
+            existing_row = self._get_row_by_values(model, data)
+            if existing_row is not None:
+                return existing_row.id
+            row = model(**data)
+            self.session.add(row)
+            self.session.commit()
+            self.session.refresh(row)
+            return row.id
+        except IntegrityError as e:
+            self.session.rollback()
+            existing_row = self._get_row_by_values(model, data)
+            if existing_row is not None:
+                return existing_row.id
+            print(f"❌ IntegrityError beim _safe_insert: {e}")
+            return None
+        except Exception as e:
+            self.session.rollback()
+            print(f"❌ Fehler bei _safe_insert: {e}")
+            return None
+
+    def insert_data(self, model, data: Dict[str, Any]) -> Optional[int]:
+        try:
+            return self._safe_insert(model, data)
+        except Exception as e:
+            print(f"❌ Fehler bei insert_data: {e}")
+            return None
+
     def delete_by_id(self, id: int) -> bool:
         try:
             stmt = delete(self.model).where(self.model.id == id)
@@ -362,28 +391,6 @@ class PersonWithContactHandler(AbstractDBHandler):
             print(f"❌ Fehler bei _get_row_by_values: {e}")
             return None
 
-    def _safe_insert(self, model, data: Dict[str, Any]) -> Optional[int]:
-        try:
-            existing_row = self._get_row_by_values(model, data)
-            if existing_row is not None:
-                return existing_row.id
-            row = model(**data)
-            self.session.add(row)
-            self.session.commit()
-            self.session.refresh(row)
-            return row.id
-        except IntegrityError as e:
-            self.session.rollback()
-            existing_row = self._get_row_by_values(model, data)
-            if existing_row is not None:
-                return existing_row.id
-            print(f"❌ IntegrityError beim _safe_insert: {e}")
-            return None
-        except Exception as e:
-            self.session.rollback()
-            print(f"❌ Fehler bei _safe_insert: {e}")
-            return None
-
     def insert_person_with_contacts(self, person_data: dict, contacts: List[dict]) -> Optional[int]:
         try:
             stmt = select(Person).where(
@@ -508,11 +515,4 @@ class PersonWithContactHandler(AbstractDBHandler):
         except Exception as e:
             self.session.rollback()
             print(f"❌ Fehler bei add_contact_to_person: {e}")
-            return None
-
-    def insert_data(self, model, data: Dict[str, Any]) -> Optional[int]:
-        try:
-            return self._safe_insert(model, data)
-        except Exception as e:
-            print(f"❌ Fehler bei insert_data: {e}")
             return None
