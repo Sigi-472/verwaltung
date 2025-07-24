@@ -4,26 +4,111 @@
     <meta charset="UTF-8">
     <title>Datenbank Tabellen</title>
     <link rel="stylesheet" href="static/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+
+        .tab-button {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            background-color: #f0f0f0;
+            margin-right: 5px;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+
+        .tab-button.active {
+            background-color: #ffffff;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+            border: 1px solid #ccc;
+            padding: 15px;
+            background-color: #ffffff;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Wizards</h1>
-    <ul>
-        {% for route in wizard_routes %}
-            <li><a href="{{ route }}">{{ route.replace('/wizard/', '').capitalize() }}</a></li>
-        {% endfor %}
-    </ul>
 
-    <h1>Aggregate</h1>
-    <a href="/aggregate">Aggregierte Ansichten</a>
+    <h1>Datenbank Übersicht</h1>
 
-    <h1>Stammdatentabellen</h1>
-    <ul>
-        {% for table in tables %}
-            <li><a href="{{ url_for('table_view', table_name=table) }}">{{ table.capitalize() }}</a></li>
-        {% endfor %}
-    </ul>
+    <div class="tabs">
+        <div class="tab-button active" data-tab="tab-wizards">Wizards</div>
+        <div class="tab-button" data-tab="tab-aggregate">Aggregate</div>
+        <div class="tab-button" data-tab="tab-tables">Stammdaten</div>
+        <div class="tab-button" data-tab="tab-map">Map-Editor</div>
+    </div>
 
-    <h1>Map-Editor</h1>
-    <a href="/map-editor">Map-Editor</a>
+    <div id="tab-wizards" class="tab-content active">
+        <h2>Wizards</h2>
+        <ul>
+            {% for route in wizard_routes %}
+                <li><a href="{{ route }}">{{ route.replace('/wizard/', '').capitalize() }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div id="tab-aggregate" class="tab-content">
+        <h2>Aggregate</h2>
+        <a href="/aggregate">Aggregierte Ansichten</a>
+    </div>
+
+    <div id="tab-tables" class="tab-content">
+        <h2>Stammdatentabellen</h2>
+        <ul>
+            {% for table in tables %}
+                <li><a href="{{ url_for('table_view', table_name=table) }}">{{ table.capitalize() }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div id="tab-map" class="tab-content">
+        <h2>Map-Editor</h2>
+        <a href="/map-editor">Map-Editor starten</a>
+    </div>
+
+    <script>
+        function switchTab(event) {
+            var tabButtons = document.querySelectorAll('.tab-button');
+            var tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(function (btn) {
+                btn.classList.remove('active');
+            });
+
+            tabContents.forEach(function (tab) {
+                tab.classList.remove('active');
+            });
+
+            var tabId = event.target.getAttribute('data-tab');
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        var buttons = document.querySelectorAll('.tab-button');
+        buttons.forEach(function (btn) {
+            btn.addEventListener('click', switchTab);
+        });
+    </script>
+
 </body>
 </html>
