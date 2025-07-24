@@ -191,20 +191,6 @@ class AbstractDBHandler:
         except Exception as e:
             print(f"❌ Fehler bei to_dict: {e}")
             return {}
-        
-    def get_all(self, filters: Optional[Dict[str, Any]] = None, as_dict: bool = False) -> List[Any]:
-        try:
-            query = select(self.model)
-            if filters:
-                for k, v in filters.items():
-                    query = query.where(getattr(self.model, k) == v)
-            result = self.session.execute(query).scalars().all()
-            if as_dict:
-                return [self.to_dict(row) for row in result]
-            return result
-        except Exception as e:
-            print(f"❌ Fehler bei get_all: {e}")
-            return []
 
     def update_by_id(self, id_: int, new_values: Dict[str, Any]) -> bool:
         print(new_values)
@@ -259,8 +245,9 @@ class PersonToRoomHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, PersonToRoom)
 
-class TransponderHandler:
+class TransponderHandler(AbstractDBHandler):
     def __init__(self, session: Session):
+        super().__init__(session, TransponderToRoom)
         self.session = session
         self.model = Transponder  # Dein SQLAlchemy-Modell
 
@@ -271,15 +258,6 @@ class TransponderToRoomHandler(AbstractDBHandler):
 class PersonWithContactHandler(AbstractDBHandler):
     def __init__(self, session: Session):
         super().__init__(session, Person)
-
-    def get_all(self) -> List[Any]:
-        try:
-            query = select(Person)
-            result = self.session.execute(query).scalars().all()
-            return result
-        except Exception as e:
-            print(f"❌ Fehler bei get_all in PersonWithContactHandler: {e}")
-            return []
 
     def insert_person_with_contacts(self, person_data: dict, contacts: List[dict]) -> Optional[int]:
         try:
