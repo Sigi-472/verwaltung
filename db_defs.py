@@ -51,6 +51,10 @@ class Abteilung(Base):
     abteilungsleiter_id = Column(Integer, ForeignKey("person.id", ondelete="SET NULL"))
     leiter = relationship("Person", back_populates="departments")
     persons = relationship("PersonToAbteilung", back_populates="abteilung", cascade="all, delete")
+    
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_abteilung_name"),
+    )
 
 class PersonToAbteilung(Base):
     __tablename__ = "person_to_abteilung"
@@ -59,12 +63,20 @@ class PersonToAbteilung(Base):
     abteilung_id = Column(Integer, ForeignKey("abteilung.id", ondelete="CASCADE"))
     person = relationship("Person", back_populates="person_abteilungen")
     abteilung = relationship("Abteilung", back_populates="persons")
+    
+    __table_args__ = (
+        UniqueConstraint("person_id", "abteilung_id", name="uq_person_to_abteilung"),
+    )
 
 class Kostenstelle(Base):
     __tablename__ = "kostenstelle"
     id = Column(Integer, primary_key=True)
     name = Column(Text)
     professorships = relationship("Professorship", back_populates="kostenstelle")
+    
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_kostenstelle_name"),
+    )
 
 class Professorship(Base):
     __tablename__ = "professorship"
@@ -73,6 +85,10 @@ class Professorship(Base):
     name = Column(Text)
     kostenstelle = relationship("Kostenstelle", back_populates="professorships")
     persons = relationship("ProfessorshipToPerson", back_populates="professorship", cascade="all, delete")
+    
+    __table_args__ = (
+        UniqueConstraint("kostenstelle_id", "name", name="uq_professorship_per_kostenstelle"),
+    )
 
 class ProfessorshipToPerson(Base):
     __tablename__ = "professorship_to_person"
@@ -81,6 +97,10 @@ class ProfessorshipToPerson(Base):
     person_id = Column(Integer, ForeignKey("person.id", ondelete="CASCADE"))
     professorship = relationship("Professorship", back_populates="persons")
     person = relationship("Person", back_populates="professorships")
+    
+    __table_args__ = (
+        UniqueConstraint("person_id", "professorship_id", name="uq_professorship_to_person"),
+    )
 
 class Building(Base):
     __tablename__ = "building"
@@ -101,6 +121,10 @@ class Room(Base):
     transponder_links = relationship("TransponderToRoom", back_populates="room", cascade="all, delete")
     layout = relationship("RoomLayout", back_populates="room", uselist=False, cascade="all, delete")
 
+    __table_args__ = (
+        UniqueConstraint("building_id", "name", name="uq_room_per_building"),
+    )
+
 class PersonToRoom(Base):
     __tablename__ = "person_to_room"
     id = Column(Integer, primary_key=True)
@@ -108,6 +132,10 @@ class PersonToRoom(Base):
     room_id = Column(Integer, ForeignKey("room.id", ondelete="CASCADE"))
     person = relationship("Person", back_populates="rooms")
     room = relationship("Room", back_populates="person_links")
+    
+    __table_args__ = (
+        UniqueConstraint("person_id", "room_id", name="uq_person_to_room"),
+    )
 
 class Transponder(Base):
     __tablename__ = "transponder"
@@ -121,6 +149,10 @@ class Transponder(Base):
     issuer = relationship("Person", foreign_keys=[issuer_id], back_populates="transponders_issued")
     owner = relationship("Person", foreign_keys=[owner_id], back_populates="transponders_owned")
     room_links = relationship("TransponderToRoom", back_populates="transponder", cascade="all, delete")
+    
+    __table_args__ = (
+        UniqueConstraint("serial_number", name="uq_transponder_serial"),
+    )
 
 class TransponderToRoom(Base):
     __tablename__ = "transponder_to_room"
@@ -130,11 +162,19 @@ class TransponderToRoom(Base):
     transponder = relationship("Transponder", back_populates="room_links")
     room = relationship("Room", back_populates="transponder_links")
 
+    __table_args__ = (
+        UniqueConstraint("transponder_id", "room_id", name="uq_transponder_to_room"),
+    )
+
 class ObjectCategory(Base):
     __tablename__ = "object_category"
     id = Column(Integer, primary_key=True)
     name = Column(Text)
     objects = relationship("Object", back_populates="category")
+    
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_object_category_name"),
+    )
 
 class Object(Base):
     __tablename__ = "object"
@@ -143,17 +183,29 @@ class Object(Base):
     price = Column(Float)
     category_id = Column(Integer, ForeignKey("object_category.id", ondelete="SET NULL"))
     category = relationship("ObjectCategory", back_populates="objects")
+    
+    __table_args__ = (
+        UniqueConstraint("name", "category_id", name="uq_object_per_category"),
+    )
 
 class Lager(Base):
     __tablename__ = "lager"
     id = Column(Integer, primary_key=True)
     raum_id = Column(Integer, ForeignKey("room.id", ondelete="SET NULL"))
 
+    __table_args__ = (
+        UniqueConstraint("raum_id", name="uq_lager_raum"),
+    )
+
 class ObjectToLager(Base):
     __tablename__ = "object_to_lager"
     id = Column(Integer, primary_key=True)
     object_id = Column(Integer, ForeignKey("object.id", ondelete="CASCADE"))
     lager_id = Column(Integer, ForeignKey("lager.id", ondelete="CASCADE"))
+
+    __table_args__ = (
+        UniqueConstraint("object_id", "lager_id", name="uq_object_to_lager"),
+    )
 
 class Inventory(Base):
     __tablename__ = "inventory"
