@@ -15,7 +15,6 @@ DATABASE_URL = "sqlite:///database.db"  # Oder PostgreSQL/MySQL
 engine = create_engine(DATABASE_URL, echo=False, future=True)
 Session = sessionmaker(bind=engine)
 
-
 def safe_insert(handler, data):
     if hasattr(handler, "insert_data"):
         try:
@@ -29,7 +28,6 @@ def safe_insert(handler, data):
         print(f"Handler {handler.__class__.__name__} hat keine Methode insert_data.")
         return None
 
-
 def safe_update(handler, id_, update_data):
     if hasattr(handler, "update_by_id"):
         try:
@@ -39,7 +37,6 @@ def safe_update(handler, id_, update_data):
             print(f"Fehler beim Update: {e}")
     else:
         print(f"Handler {handler.__class__.__name__} hat keine Methode update_by_id.")
-
 
 def test_handler(handler_class, insert_data, update_data, name: str):
     print(f"\nTeste {name}...")
@@ -66,8 +63,6 @@ def test_handler(handler_class, insert_data, update_data, name: str):
 
 
 def main():
-    # Dummy-Daten für Test, hier nur valide Felder verwenden!
-
     person_with_contacts_insert = {
         "title": "Herr",
         "first_name": "Max",
