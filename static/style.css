@@ -109,7 +109,7 @@ input.cell-input:focus, select.cell-input:focus {
 	padding-bottom: 14px;
 }
 
-button.save-new {
+.save-new {
 	background-color: #27ae60;
 	border: none;
 	color: white;
@@ -122,12 +122,12 @@ button.save-new {
 	width: 100%;
 }
 
-button.save-new:hover {
+.save-new:hover {
 	background-color: #219150;
 }
 
 /* Disabled Zustand */
-button.save-new:disabled {
+.save-new:disabled {
 	background-color: #95a5a6; /* Hellgrau */
 	cursor: not-allowed;
 	color: #ecf0f1; /* Heller Text */
@@ -136,7 +136,7 @@ button.save-new:disabled {
 }
 
 /* Hover deaktivieren, wenn disabled */
-button.save-new:disabled:hover {
+.save-new:disabled:hover {
 	background-color: #95a5a6; /* bleibt grau */
 }
 
@@ -179,7 +179,7 @@ button.save-new:disabled:hover {
 	}
 }
 
-button.delete-entry {
+.delete-entry {
 	background-color: #e74c3c; /* kräftiges Rot */
 	color: white;
 	border: none;
@@ -190,11 +190,11 @@ button.delete-entry {
 	transition: background-color 0.3s ease;
 }
 
-button.delete-entry:hover {
+.delete-entry:hover {
 	background-color: #c0392b; /* dunkleres Rot beim Hover */
 }
 
-button.delete-entry:active {
+.delete-entry:active {
 	background-color: #992d22; /* noch dunkler beim Klicken */
 }
 
