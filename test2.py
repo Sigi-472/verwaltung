@@ -16,116 +16,135 @@ engine = create_engine(DATABASE_URL, echo=False, future=True)
 Session = sessionmaker(bind=engine)
 
 
-def test_handler(handler_class, test_data_insert, test_update_data, name: str):
+def safe_insert(handler, data):
+    if hasattr(handler, "insert_data"):
+        try:
+            inserted_id = handler.insert_data(data)
+            print(f"-> Eintrag eingefügt mit ID: {inserted_id}")
+            return inserted_id
+        except Exception as e:
+            print(f"Fehler beim Einfügen: {e}")
+            return None
+    else:
+        print(f"Handler {handler.__class__.__name__} hat keine Methode insert_data.")
+        return None
+
+
+def safe_update(handler, id_, update_data):
+    if hasattr(handler, "update_by_id"):
+        try:
+            success = handler.update_by_id(id_, update_data)
+            print(f"-> Update erfolgreich: {success}")
+        except Exception as e:
+            print(f"Fehler beim Update: {e}")
+    else:
+        print(f"Handler {handler.__class__.__name__} hat keine Methode update_by_id.")
+
+
+def test_handler(handler_class, insert_data, update_data, name: str):
     print(f"\nTeste {name}...")
 
     session = Session()
     try:
         handler = handler_class(session)
 
-        # Insert
-        inserted_id = None
-        try:
-            inserted_id = handler.insert_data(test_data_insert)
-            print(f"-> Eintrag eingefügt mit ID: {inserted_id}")
-        except Exception as e:
-            print(f"Fehler beim Einfügen: {e}")
-
-        # Update (falls Insert erfolgreich)
-        if inserted_id is not None:
+        if name == "PersonWithContactHandler":
+            # Spezielle Methode benutzen, falls vorhanden
             try:
-                success = handler.update_by_id(inserted_id, test_update_data)
-                print(f"-> Update erfolgreich: {success}")
+                inserted_id = handler.insert_person_with_contacts(insert_data, insert_data.get("contacts", []))
+                print(f"-> Eintrag eingefügt mit ID: {inserted_id}")
+                if inserted_id is not None:
+                    safe_update(handler, inserted_id, update_data)
             except Exception as e:
-                print(f"Fehler beim Update: {e}")
-
+                print(f"Fehler bei insert_person_with_contacts: {e}")
+        else:
+            inserted_id = safe_insert(handler, insert_data)
+            if inserted_id is not None:
+                safe_update(handler, inserted_id, update_data)
     finally:
         session.close()
 
 
 def main():
-    # Testdaten für alle Handler (bitte an dein Schema anpassen!)
+    # Dummy-Daten für Test, hier nur valide Felder verwenden!
 
-    test_person_contact_insert = {
+    person_with_contacts_insert = {
         "title": "Herr",
         "first_name": "Max",
         "last_name": "Mustermann",
         "comment": "Testperson",
         "image_url": None,
+        "contacts": [
+            {
+                "email": "max.mustermann@example.com",
+                "phone": None,
+                "fax": None,
+                "comment": None
+            }
+        ]
     }
-    test_person_contact_update = {
+    person_with_contacts_update = {
         "comment": "Geänderte Testperson",
         "title": "Dr."
     }
 
-    test_abteilung_insert = {
-        "name": "IT-Abteilung",
-        "beschreibung": "Verwaltet IT Systeme"
+    abteilung_insert = {
+        "name": "IT"
+        # hier nur Felder, die sicher existieren
     }
-    test_abteilung_update = {
-        "beschreibung": "Geänderte Beschreibung"
+    abteilung_update = {
+        "name": "IT-Abteilung"
     }
 
-    test_p_to_a_insert = {
-        "person_id": 1,  # Dummy ID, ggf. anpassen!
+    person_to_abteilung_insert = {
+        "person_id": 1,
         "abteilung_id": 1
     }
-    test_p_to_a_update = {
-        # z.B. nur Kommentar, wenn Feld vorhanden
-        # hier kein Beispiel, ggf. leer lassen
-    }
+    person_to_abteilung_update = {}
 
-    test_building_insert = {
+    building_insert = {
         "name": "Hauptgebäude",
         "address": "Musterstraße 1"
     }
-    test_building_update = {
-        "address": "Geänderte Adresse 2"
+    building_update = {
+        "address": "Neue Musterstraße 2"
     }
 
-    test_room_insert = {
+    room_insert = {
         "building_id": 1,
-        "name": "Konferenzraum 101",
-        "capacity": 20
+        "name": "Konferenzraum 1"
+        # keine 'capacity', falls nicht definiert
     }
-    test_room_update = {
-        "capacity": 25
-    }
+    room_update = {}
 
-    test_p_to_room_insert = {
+    person_to_room_insert = {
         "person_id": 1,
         "room_id": 1
     }
-    test_p_to_room_update = {
-        # ggf. keine Felder zum updaten
+    person_to_room_update = {}
+
+    transponder_insert = {
+        "code": "TR-123456"  # falls "transponder_id" nicht existiert, z.B. "code"
+        # oder nur Pflichtfelder
+    }
+    transponder_update = {
+        "comment": "Geändert"
     }
 
-    test_transponder_insert = {
-        "transponder_id": "TR-123456",
-        "comment": "Testtransponder"
-    }
-    test_transponder_update = {
-        "comment": "Geänderter Kommentar"
-    }
-
-    test_t_to_room_insert = {
+    transponder_to_room_insert = {
         "transponder_id": 1,
         "room_id": 1
     }
-    test_t_to_room_update = {
-        # ggf. leer
-    }
+    transponder_to_room_update = {}
 
-    # Tests ausführen
-
-    test_handler(PersonWithContactHandler, test_person_contact_insert, test_person_contact_update, "PersonWithContactHandler")
-    test_handler(AbteilungHandler, test_abteilung_insert, test_abteilung_update, "AbteilungHandler")
-    test_handler(PersonToAbteilungHandler, test_p_to_a_insert, test_p_to_a_update, "PersonToAbteilungHandler")
-    test_handler(BuildingHandler, test_building_insert, test_building_update, "BuildingHandler")
-    test_handler(RoomHandler, test_room_insert, test_room_update, "RoomHandler")
-    test_handler(PersonToRoomHandler, test_p_to_room_insert, test_p_to_room_update, "PersonToRoomHandler")
-    test_handler(TransponderHandler, test_transponder_insert, test_transponder_update, "TransponderHandler")
-    test_handler(TransponderToRoomHandler, test_t_to_room_insert, test_t_to_room_update, "TransponderToRoomHandler")
+    test_handler(PersonWithContactHandler, person_with_contacts_insert, person_with_contacts_update, "PersonWithContactHandler")
+    test_handler(AbteilungHandler, abteilung_insert, abteilung_update, "AbteilungHandler")
+    test_handler(PersonToAbteilungHandler, person_to_abteilung_insert, person_to_abteilung_update, "PersonToAbteilungHandler")
+    test_handler(BuildingHandler, building_insert, building_update, "BuildingHandler")
+    test_handler(RoomHandler, room_insert, room_update, "RoomHandler")
+    test_handler(PersonToRoomHandler, person_to_room_insert, person_to_room_update, "PersonToRoomHandler")
+    test_handler(TransponderHandler, transponder_insert, transponder_update, "TransponderHandler")
+    test_handler(TransponderToRoomHandler, transponder_to_room_insert, transponder_to_room_update, "TransponderToRoomHandler")
 
 
 if __name__ == "__main__":
