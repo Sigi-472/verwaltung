@@ -1,3 +1,4 @@
+from typing import Optional, Dict, Any, Type, List
 from sqlalchemy import (create_engine, Column, Integer, String, Text, ForeignKey, Date, Float, TIMESTAMP, UniqueConstraint)
 from sqlalchemy.orm.util import AliasedClass
 from sqlalchemy.inspection import inspect
@@ -27,6 +28,23 @@ class Person(Base):
     __table_args__ = (
         UniqueConstraint("title", "first_name", "last_name", name="uq_person_name_title"),
     )
+
+    def get_all(self) -> List:
+        try:
+            query = select(Person)
+            result = self.session.execute(query).scalars().all()
+            return result
+        except Exception as e:
+            print(f"❌ Fehler bei get_all in PersonHandler: {e}")
+            return []
+
+    def to_dict(self) -> Dict[str, Any]:
+        try:
+            return {col.name: getattr(self, col.name) for col in self.__table__.columns}
+        except Exception as e:
+            print(f"❌ Fehler bei to_dict in PersonHandler: {e}")
+            return {}
+
 
 class PersonContact(Base):
     __tablename__ = "person_contact"

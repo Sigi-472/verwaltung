@@ -133,6 +133,29 @@ class AbstractDBHandler:
             print(f"❌ Fehler bei delete: {e}")
             return False
 
+    def to_dict(self, instance: Any) -> Dict[str, Any]:
+        try:
+            return {col.name: getattr(instance, col.name) for col in instance.__table__.columns}
+        except Exception as e:
+            print(f"❌ Fehler bei to_dict: {e}")
+            return {}
+        
+    def get_all(self, filters: Optional[Dict[str, Any]] = None, as_dict: bool = False) -> List[Any]:
+        try:
+            query = select(self.model)
+            if filters:
+                for k, v in filters.items():
+                    query = query.where(getattr(self.model, k) == v)
+            result = self.session.execute(query).scalars().all()
+            if as_dict:
+                return [self.to_dict(row) for row in result]
+            return result
+        except Exception as e:
+            print(f"❌ Fehler bei get_all: {e}")
+            return []
+
+
+
 # Spezifische Klassen
 
 class PersonHandler(AbstractDBHandler):
@@ -313,6 +336,22 @@ class TransponderToRoomHandler(AbstractDBHandler):
 class PersonWithContactHandler:
     def __init__(self, session: Session):
         self.session = session
+
+    def get_all(self) -> List[Any]:
+        try:
+            query = select(Person)
+            result = self.session.execute(query).scalars().all()
+            return result
+        except Exception as e:
+            print(f"❌ Fehler bei get_all in PersonWithContactHandler: {e}")
+            return []
+
+    def to_dict(self, instance: Any) -> Dict[str, Any]:
+        try:
+            return {col.name: getattr(instance, col.name) for col in instance.__table__.columns}
+        except Exception as e:
+            print(f"❌ Fehler bei to_dict in PersonWithContactHandler: {e}")
+            return {}
 
     def _get_row_by_values(self, model, data: Dict[str, Any]) -> Optional[Any]:
         try:
