@@ -1426,6 +1426,7 @@ def get_handler_instance(handler_name):
     session = Session()
     return handler_class(session), None
 
+
 @app.route("/user_edit/<handler_name>", methods=["GET", "POST"])
 def gui_edit(handler_name):
     handler, error = get_handler_instance(handler_name)
@@ -1438,13 +1439,27 @@ def gui_edit(handler_name):
             form_data = dict(request.form)
             obj_id = form_data.pop("id", None)
             try:
-                if obj_id:
-                    success = handler.update_by_id(int(obj_id), form_data)
-                    message = f"Eintrag {obj_id} aktualisiert." if success else "Update fehlgeschlagen."
+                if "delete" in form_data and form_data["delete"] == "1":
+                    # Lösch-Request
+                    if obj_id is not None:
+                        try:
+                            success = handler.delete_by_id(int(obj_id))
+                            if success:
+                                message = f"Eintrag {obj_id} gelöscht."
+                            else:
+                                message = "Löschen fehlgeschlagen."
+                        except Exception as e:
+                            message = f"Fehler beim Löschen: {e}"
+                    else:
+                        message = "Keine ID angegeben zum Löschen."
                 else:
-                    inserted_id = handler.insert_data(handler.model, form_data)
-
-                    message = f"Neuer Eintrag eingefügt mit ID {inserted_id}"
+                    # Update oder Insert
+                    if obj_id:
+                        success = handler.update_by_id(int(obj_id), form_data)
+                        message = f"Eintrag {obj_id} aktualisiert." if success else "Update fehlgeschlagen."
+                    else:
+                        inserted_id = handler.insert_data(handler.model, form_data)
+                        message = f"Neuer Eintrag eingefügt mit ID {inserted_id}"
             except Exception as e:
                 message = f"Fehler: {e}"
 
@@ -1461,7 +1476,6 @@ def gui_edit(handler_name):
                 columns = []
         else:
             columns = list(handler.to_dict(rows[0]).keys())
-
 
         return render_template(
             "edit.html",
