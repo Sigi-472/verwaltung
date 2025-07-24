@@ -13,7 +13,6 @@ class Person(Base):
     title = Column(Text)
     first_name = Column(Text)
     last_name = Column(Text)
-    created_at = Column(TIMESTAMP)
     comment = Column(Text)
     image_url = Column(Text)
 
