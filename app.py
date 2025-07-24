@@ -845,9 +845,9 @@ def get_abteilung_metadata(abteilung_id: int) -> dict:
 
 
 def generate_fields_for_schluesselausgabe_from_metadata(
-    issuer: dict, 
-    owner: dict, 
-    transponder: dict, 
+    issuer: dict,
+    owner: dict,
+    transponder: dict,
     abteilung: dict = None
 ) -> dict:
     data = {}
