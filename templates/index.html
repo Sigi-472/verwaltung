@@ -7,8 +7,6 @@
 </head>
 <body>
 
-    <h1>Datenbank</h1>
-
     <div class="tabs">
         <div class="tab-button active" data-tab="tab-wizards">Wizards</div>
         <div class="tab-button" data-tab="tab-aggregate">Aggregate</div>
@@ -17,7 +15,6 @@
     </div>
 
     <div id="tab-wizards" class="tab-content active">
-        <h2>Wizards</h2>
         <ul>
             {% for route in wizard_routes %}
                 <li><a href="{{ route }}">{{ route.replace('/wizard/', '').capitalize() }}</a></li>
@@ -26,12 +23,10 @@
     </div>
 
     <div id="tab-aggregate" class="tab-content">
-        <h2>Aggregate</h2>
         <a href="/aggregate">Aggregierte Ansichten</a>
     </div>
 
     <div id="tab-tables" class="tab-content">
-        <h2>Stammdatentabellen</h2>
         <ul>
             {% for table in tables %}
                 <li><a href="{{ url_for('table_view', table_name=table) }}">{{ table.capitalize() }}</a></li>
@@ -40,7 +35,6 @@
     </div>
 
     <div id="tab-map" class="tab-content">
-        <h2>Map-Editor</h2>
         <a href="/map-editor">Map-Editor starten</a>
     </div>
 
