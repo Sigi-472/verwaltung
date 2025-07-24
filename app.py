@@ -22,7 +22,7 @@ def create_and_setup_venv():
     print(f"Creating virtualenv at {VENV_PATH}")
     venv.create(VENV_PATH, with_pip=True)
     subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "pip"])
-    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography"])
+    subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography", "aiosqlite"])
 
 def restart_with_venv():
     try:
@@ -54,13 +54,14 @@ try:
     import html
     from sqlalchemy import Date, DateTime
     import cryptography
+    import aiosqlite
     import datetime
 except ModuleNotFoundError:
     if not VENV_PATH.exists():
         create_and_setup_venv()
     else:
         try:
-            subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "-q", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography"])
+            subprocess.check_call([PYTHON_BIN, "-m", "pip", "install", "-q", "--upgrade", "flask", "sqlalchemy", "pypdf", "cryptography", "aiosqlite"])
         except subprocess.CalledProcessError:
             shutil.rmtree(VENV_PATH)
             create_and_setup_venv()
